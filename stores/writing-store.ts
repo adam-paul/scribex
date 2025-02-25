@@ -1,7 +1,8 @@
 import { create } from 'zustand';
-import { persist, createJSONStorage } from 'zustand/middleware';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { persist } from 'zustand/middleware';
 import { WritingProject, WritingGenre } from '@/types/writing';
+import { createWritingStorage } from '@/services/supabase-storage';
+import supabaseService from '@/services/supabase-service';
 
 interface WritingState {
   // Project State
@@ -140,7 +141,18 @@ export const useWritingStore = create<WritingState>()(
     }),
     {
       name: 'writing-storage',
-      storage: createJSONStorage(() => AsyncStorage),
+      storage: createWritingStorage(),
+      // Add listener to sync with Supabase when changes occur
+      onRehydrateStorage: () => (state) => {
+        if (state) {
+          // Sync with Supabase when the store is hydrated
+          const user = supabaseService.getCurrentUser();
+          if (user && state.projects) {
+            supabaseService.saveWritingProjects(state.projects)
+              .catch(err => console.error('Failed to sync writing projects:', err));
+          }
+        }
+      }
     }
   )
 );

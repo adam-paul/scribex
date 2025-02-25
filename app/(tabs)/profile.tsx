@@ -1,37 +1,67 @@
-import { StyleSheet, View, Text, Image, ScrollView } from 'react-native';
+import { StyleSheet, View, Text, Image, ScrollView, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Settings, Award, BookOpen, Trophy } from 'lucide-react-native';
+import { Settings, Award, BookOpen, Trophy, LogOut } from 'lucide-react-native';
+import { useRouter } from 'expo-router';
 import { colors } from '@/constants/colors';
 import { Card } from '@/components/Card';
 import { Button } from '@/components/Button';
+import { useAuth } from '@/contexts/AuthContext';
 
 export default function ProfileScreen() {
+  const { user, isAuthenticated, signOut } = useAuth();
+  const router = useRouter();
+  
   const stats = [
     { icon: BookOpen, label: 'Words Written', value: '12,450' },
     { icon: Trophy, label: 'Challenges Won', value: '8' },
     { icon: Award, label: 'Achievements', value: '15' },
   ];
+  
+  const handleSignOut = () => {
+    Alert.alert(
+      'Sign Out',
+      'Are you sure you want to sign out?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { 
+          text: 'Sign Out', 
+          onPress: async () => {
+            await signOut();
+          },
+          style: 'destructive'
+        }
+      ]
+    );
+  };
+  
+  const handleSignIn = () => {
+    router.push('/auth');
+  };
 
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.header}>
-          <View style={styles.headerContent}>
+          <View style={styles.headerTop}>
             <Image
-              source={{ uri: 'https://i.pravatar.cc/300' }}
+              source={{ uri: `https://i.pravatar.cc/300?u=${user?.id || 'default'}` }}
               style={styles.avatar}
             />
             <View style={styles.headerText}>
-              <Text style={styles.name}>Alex Johnson</Text>
+              <Text style={styles.name}>{user?.email?.split('@')[0] || 'User'}</Text>
               <Text style={styles.level}>Level 12 Writer</Text>
             </View>
           </View>
-          <Button
-            title="Settings"
-            onPress={() => {}}
-            variant="secondary"
-            size="small"
-          />
+          <View style={styles.signOutContainer}>
+            <Button
+              title="Sign Out"
+              onPress={handleSignOut}
+              variant="secondary"
+              size="small"
+              icon={<LogOut size={16} color={colors.textSecondary} />}
+              style={styles.signOutButton}
+            />
+          </View>
         </View>
 
         <View style={styles.statsGrid}>
@@ -64,14 +94,12 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
     marginBottom: 24,
   },
-  headerContent: {
+  headerTop: {
     flexDirection: 'row',
     alignItems: 'center',
+    marginBottom: 16,
   },
   avatar: {
     width: 80,
@@ -91,6 +119,18 @@ const styles = StyleSheet.create({
   level: {
     fontSize: 16,
     color: colors.textSecondary,
+  },
+  signOutContainer: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+  },
+  signOutButton: {
+    alignSelf: 'flex-end',
+  },
+  loginPrompt: {
+    fontSize: 14,
+    color: colors.primary,
+    marginTop: 4,
   },
   statsGrid: {
     flexDirection: 'row',

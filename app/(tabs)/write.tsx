@@ -90,7 +90,7 @@ export default function WriteScreen() {
           <Text style={styles.title}>My Writing</Text>
           <Button
             title="New Project"
-            icon={FolderPlus}
+            icon={<FolderPlus size={16} color={colors.surface} />}
             onPress={() => setShowCreateModal(true)}
             variant="primary"
             size="small"
@@ -119,7 +119,7 @@ export default function WriteScreen() {
         {!focusMode && (
           <View style={styles.editorHeader}>
             <Button
-              icon={ArrowLeftCircle}
+              icon={<ArrowLeftCircle size={16} color={colors.primary} />}
               title="Projects"
               onPress={handleBackToProjects}
               variant="outline"
@@ -127,7 +127,7 @@ export default function WriteScreen() {
             />
             <Text style={styles.projectTitle}>{currentProject.title}</Text>
             <Button
-              icon={Sparkles}
+              icon={<Sparkles size={16} color={colors.primary} />}
               title="Ideas"
               onPress={() => router.push('/modal')}
               variant="outline"

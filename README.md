@@ -37,6 +37,11 @@ A comprehensive educational writing app designed to help students develop essent
      ```
      OPENAI_API_KEY=your_api_key_here
      ```
+   - Add your Supabase credentials to enable cloud sync:
+     ```
+     SUPABASE_URL=your_supabase_url_here
+     SUPABASE_ANON_KEY=your_supabase_anon_key_here
+     ```
    - **Important**: After changing the .env file, you must restart the dev server completely
      (not just reload the app) for environment variables to take effect.
 
@@ -84,3 +89,4 @@ These features require an OpenAI API key to function. Without a key, the app wil
 - Built with React Native and Expo
 - UI components from Lucide React Native
 - State management with Zustand
+- Database and authentication by Supabase

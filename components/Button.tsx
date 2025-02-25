@@ -1,4 +1,4 @@
-import { StyleSheet, Text, Pressable, ViewStyle, TextStyle } from 'react-native';
+import { StyleSheet, Text, Pressable, ViewStyle, TextStyle, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { colors } from '@/constants/colors';
 
@@ -10,6 +10,7 @@ type ButtonProps = {
   style?: ViewStyle;
   textStyle?: TextStyle;
   disabled?: boolean;
+  icon?: React.ReactNode;
 };
 
 export function Button({
@@ -20,6 +21,7 @@ export function Button({
   style,
   textStyle,
   disabled = false,
+  icon,
 }: ButtonProps) {
   const getHeight = () => {
     switch (size) {
@@ -28,6 +30,20 @@ export function Button({
       default: return 46;
     }
   };
+
+  const renderContent = () => (
+    <View style={styles.contentContainer}>
+      {icon && <View style={styles.iconContainer}>{icon}</View>}
+      <Text style={[
+        styles.text,
+        variant !== 'primary' && variant === 'secondary' && styles.secondaryText,
+        variant !== 'primary' && variant === 'outline' && styles.outlineText,
+        textStyle
+      ]}>
+        {title}
+      </Text>
+    </View>
+  );
 
   if (variant === 'primary') {
     return (
@@ -43,9 +59,7 @@ export function Button({
           style,
         ]}
       >
-        <Text style={[styles.text, textStyle]}>
-          {title}
-        </Text>
+        {renderContent()}
       </Pressable>
     );
   }
@@ -64,14 +78,7 @@ export function Button({
         style,
       ]}
     >
-      <Text style={[
-        styles.text,
-        variant === 'secondary' && styles.secondaryText,
-        variant === 'outline' && styles.outlineText,
-        textStyle
-      ]}>
-        {title}
-      </Text>
+      {renderContent()}
     </Pressable>
   );
 }
@@ -81,7 +88,15 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 20,
+    paddingHorizontal: 16,
+  },
+  contentContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  iconContainer: {
+    marginRight: 8,
   },
   secondaryButton: {
     backgroundColor: colors.surface,

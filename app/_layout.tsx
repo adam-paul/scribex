@@ -3,13 +3,14 @@ import { useFonts } from "expo-font";
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { useEffect } from "react";
-import { Platform } from "react-native";
+import { Platform, View, ActivityIndicator } from "react-native";
 import { ErrorBoundary } from "./error-boundary";
 import { ThemeProvider } from "@/contexts/ThemeContext";
+import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { useProgressStore } from "@/stores/progress-store";
 
-// Set to true to reset progress on each app launch (development only)
-const DEV_RESET_PROGRESS_ON_LAUNCH = true;
+// Set to false to maintain progress data between app launches
+const DEV_RESET_PROGRESS_ON_LAUNCH = false;
 
 export const unstable_settings = {
   // Ensure that reloading on `/modal` keeps a back button present.
@@ -53,14 +54,27 @@ export default function RootLayout() {
 
   return (
     <ErrorBoundary>
-      <ThemeProvider>
-        <RootLayoutNav />
-      </ThemeProvider>
+      <AuthProvider>
+        <ThemeProvider>
+          <RootLayoutNav />
+        </ThemeProvider>
+      </AuthProvider>
     </ErrorBoundary>
   );
 }
 
 function RootLayoutNav() {
+  // Get auth loading state to show loading indicator
+  const { isLoading } = useAuth();
+  
+  if (isLoading) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+        <ActivityIndicator size="large" color={Platform.OS === 'ios' ? '#007AFF' : '#6200EE'} />
+      </View>
+    );
+  }
+  
   return (
     <Stack screenOptions={{
       // Remove animation options that might be causing issues
@@ -68,6 +82,7 @@ function RootLayoutNav() {
     }}>
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen name="modal" options={{ presentation: "modal" }} />
+      <Stack.Screen name="auth" options={{ headerShown: false }} />
     </Stack>
   );
 }

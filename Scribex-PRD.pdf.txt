@@ -1,10 +1,10 @@
-ScribexX - Writing App Specification Sheet
+ScribeX - Writing App Specification Sheet
 
 
 
 
 Overview
-ScribexX is a writing app designed for junior high students and surrounding grades. It balances
+ScribeX is a writing app designed for junior high students and surrounding grades. It balances
 direct instruction for excellence with creative freedom, empowering students to express
 their ideas and improve their writing skills. The app is heavily inspired by gamification and
 interactive learning, incorporating engaging aesthetics, intuitive UI, and AI-assisted feedback.
@@ -40,7 +40,7 @@ B. Open World Learning (OWL)
        automaticity.
    2.​ Sequencing & Logic: Focuses on argument structure, logical flow, and content
        generation.
-   3.​ Voice & Rhetoric: Covers audience awareness, word choice, rhythm, and persuasive
+   3.​ Voice & Rhetoric: Covers audience awareness, word choice, rhythm, and persuasive
        techniques.
 
 3. UI/UX and Gamification
@@ -83,8 +83,8 @@ B. Gamified Learning Experience
 Design & Aesthetic Guidelines
 1. Theme & Mood
 
-   ●​ Synthwave + Cyberpunk + Botanical Futurism
-  ●​   Bright neon colors combined with metallic grays and sleek whites.
+  ●​ Synthwave + Cyberpunk + Botanical Futurism
+  ●​   Bright neon colors combined with metallic grays and sleek whites.
   ●​   A balance between visually engaging design and a distraction-free writing space.
   ●​   The digital void aesthetic conveys the idea of infinite possibility and creative power.
   ●​   UI should feel minimalist, smooth, and glassy with organic elements to ground it.
@@ -118,13 +118,8 @@ Technical Requirements
   ●​ Customizable controls for difficulty, AI interaction, and content selection.
 
 
-
-
 Next Steps
   1.​ Wireframe UI/UX design for core app screens.
   2.​ Develop AI feedback system for writing analysis.
   3.​ Prototype gamification mechanics.
   4.​ User testing & iterative feedback before full-scale development.
-This spec sheet provides an actionable roadmap for developers to create ScribexX, ensuring it
-is both engaging and educational.
-

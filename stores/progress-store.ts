@@ -1,9 +1,10 @@
 import { create } from 'zustand';
-import { persist, createJSONStorage } from 'zustand/middleware';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { persist } from 'zustand/middleware';
 import NetInfo from '@react-native-community/netinfo';
 import { UserProgress, Achievement } from '@/types/learning';
 import { LEVELS } from '@/constants/levels';
+import { createProgressStorage } from '@/services/supabase-storage';
+import supabaseService from '@/services/supabase-service';
 
 interface ProgressState {
   progress: UserProgress;
@@ -318,15 +319,27 @@ export const useProgressStore = create<ProgressState>()(
       },
       
       syncWithServer: async () => {
-        // In a real app, this would communicate with a backend server
-        // For now, we'll simulate a successful sync
+        // Use Supabase to sync the current progress state
         try {
-          // Simulate API call
-          await new Promise(resolve => setTimeout(resolve, 500));
+          const { progress } = get();
+          const user = supabaseService.getCurrentUser();
           
-          // Mark as synced
-          get().markSynced();
-          return true;
+          // If user is logged in, save to Supabase
+          if (user) {
+            const success = await supabaseService.saveProgress(progress);
+            if (success) {
+              get().markSynced();
+              return true;
+            } else {
+              console.error('Supabase sync failed');
+              return false;
+            }
+          } else {
+            // If not logged in, just mark as synced locally
+            // This will rely on our fallback to AsyncStorage
+            get().markSynced();
+            return true;
+          }
         } catch (error) {
           console.error('Failed to sync progress:', error);
           return false;
@@ -342,7 +355,14 @@ export const useProgressStore = create<ProgressState>()(
     }),
     {
       name: 'progress-storage',
-      storage: createJSONStorage(() => AsyncStorage),
+      storage: createProgressStorage(),
+      onRehydrateStorage: () => (state) => {
+        if (!state) {
+          console.log('Progress store failed to rehydrate');
+          return;
+        }
+        console.log('Progress store rehydrated successfully');
+      }
     }
   )
 );
