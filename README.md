@@ -69,14 +69,15 @@ A comprehensive educational writing app designed to help students develop essent
 
 ## AI Features
 
-ScribeX incorporates AI capabilities for:
+ScribeX incorporates AI capabilities powered by OpenAI's GPT-4o model for:
 
 - Writing feedback and analysis
 - Grammar and structure evaluation
 - Writing prompts based on user preferences
 - Style suggestions and enhancements
+- Dynamic exercise generation
 
-These features require an OpenAI API key to function. Without a key, the app will fall back to offline functionality.
+These features require an OpenAI API key to function. Without a key, the app will fall back to offline functionality with pre-defined content.
 
 ## Acknowledgments
 

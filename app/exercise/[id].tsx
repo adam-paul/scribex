@@ -298,6 +298,7 @@ export default function ExerciseScreen() {
           title: exerciseSet.title,
           headerLeft: () => (
             <Button
+              key="header-back-button"
               title="Exit"
               onPress={() => router.back()}
               variant="secondary"
@@ -624,6 +625,7 @@ export default function ExerciseScreen() {
         <View style={styles.actions}>
           {!showExplanation ? (
             <Button
+              key="check-button"
               title="Check Answer"
               onPress={handleCheck}
               disabled={
@@ -638,6 +640,7 @@ export default function ExerciseScreen() {
             />
           ) : (
             <Button
+              key="next-button"
               title={
                 currentExerciseIndex === exerciseSet.exercises.length - 1
                   ? 'Complete'

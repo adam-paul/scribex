@@ -85,7 +85,7 @@ export async function generateExercise(levelId: string, topic: string): Promise<
     
     // Call OpenAI API
     const response = await openai.chat.completions.create({
-      model: "gpt-3.5-turbo",
+      model: "gpt-4o",
       messages: [
         {
           role: "system",
@@ -166,143 +166,297 @@ function getFallbackExercise(levelId: string, topic: string): Exercise {
 
 // Function to generate a complete exercise set with more structured options
 export async function generateExerciseSet(options: AIRequestOptions): Promise<ExerciseSet> {
-  const { levelId, count = 3 } = options;
+  const { levelId, count = 4 } = options; // Default to 4 exercises per set
   
   // Get level information
   const level = LEVELS.find(l => l.id === levelId);
   const levelType = level?.type || 'mechanics';
   const difficulty = level?.difficulty || 1;
   
-  // In production, this would call an AI API to generate exercises
+  // Check if AI features are enabled
+  if (!isAiEnabled()) {
+    console.log('AI features disabled. Using fallback exercise set.');
+    return getFallbackExerciseSet(levelId, levelType, count);
+  }
+  
+  try {
+    // Check rate limit
+    if (!(await checkRateLimit('generateExerciseSet'))) {
+      throw new Error('Rate limit exceeded. Please try again later.');
+    }
+    
+    console.log(`Generating AI exercise set for level: ${levelId}, type: ${levelType}, count: ${count}`);
+    
+    // Generate exercises using different exercise types
+    const exercises: Exercise[] = [];
+    
+    // Define the exercise types we want to include in the set
+    const exerciseTypes = ['multiple-choice', 'fill-in-blank', 'matching', 'reorder'];
+    
+    // Topics based on level type
+    const topicsByType = {
+      'mechanics': ['grammar', 'punctuation', 'sentence structure', 'parts of speech'],
+      'sequencing': ['paragraph flow', 'transitions', 'essay organization', 'logical arguments'],
+      'voice': ['writing style', 'audience awareness', 'descriptive writing', 'rhetoric']
+    };
+    
+    // Select topics based on level type
+    const topics = topicsByType[levelType as keyof typeof topicsByType] || ['writing'];
+    
+    // Generate AI exercises
+    for (let i = 0; i < count; i++) {
+      try {
+        // Choose exercise type - cycle through the types
+        const exerciseType = exerciseTypes[i % exerciseTypes.length];
+        
+        // Choose a topic
+        const topic = topics[Math.floor(Math.random() * topics.length)];
+        
+        // Generate an AI exercise with specific type
+        const aiExercise = await generateAIExerciseWithType(levelId, levelType, topic, exerciseType, difficulty);
+        
+        exercises.push(aiExercise);
+      } catch (error) {
+        console.error(`Error generating exercise ${i+1}:`, error);
+        // If one exercise fails, continue with the others
+      }
+    }
+    
+    // If we couldn't generate any exercises, fall back to static ones
+    if (exercises.length === 0) {
+      throw new Error('Failed to generate any exercises');
+    }
+    
+    // Get titles and descriptions based on level
+    const title = getLevelTitle(levelId);
+    const description = getLevelDescription(levelId);
+    
+    return {
+      id: `set-${levelId}-${Date.now()}`,
+      levelId,
+      title,
+      description,
+      exercises,
+      requiredScore: 90, // PRD requirement: 90% accuracy to proceed
+    };
+  } catch (error) {
+    console.error('Error generating exercise set:', error);
+    return getFallbackExerciseSet(levelId, levelType, count);
+  }
+}
+
+// Generate an AI exercise with a specific type
+async function generateAIExerciseWithType(
+  levelId: string, 
+  levelType: string,
+  topic: string, 
+  exerciseType: string,
+  difficulty: number
+): Promise<Exercise> {
+  try {
+    // Build prompt based on exercise type
+    let systemPrompt = `You are an educational assistant creating a ${exerciseType} exercise about ${topic} for students learning writing skills related to ${levelType} at difficulty level ${difficulty}/5.`;
+    let userPrompt = "";
+    
+    switch (exerciseType) {
+      case 'multiple-choice':
+        systemPrompt += " Create a multiple-choice question with 4 options (only one correct).";
+        userPrompt = `Create a multiple-choice exercise about ${topic} for writing students.
+        Format as JSON with:
+        {
+          "question": "clear question text",
+          "instruction": "instructional text for the student",
+          "choices": [
+            {"id": "1", "text": "option 1", "isCorrect": true, "explanation": "why this is correct"},
+            {"id": "2", "text": "option 2", "isCorrect": false, "explanation": "why this is wrong"},
+            {"id": "3", "text": "option 3", "isCorrect": false, "explanation": "why this is wrong"},
+            {"id": "4", "text": "option 4", "isCorrect": false, "explanation": "why this is wrong"}
+          ],
+          "explanation": "general explanation about the concept"
+        }`;
+        break;
+        
+      case 'fill-in-blank':
+        systemPrompt += " Create a fill-in-the-blank exercise with 4 possible options.";
+        userPrompt = `Create a fill-in-blank exercise about ${topic} for writing students.
+        Format as JSON with:
+        {
+          "question": "sentence with _____ for the blank",
+          "instruction": "instructional text for the student",
+          "correctAnswer": "the correct word",
+          "fillOptions": ["correct word", "wrong option", "wrong option", "wrong option"],
+          "explanation": "explanation why the correct answer is right"
+        }`;
+        break;
+        
+      case 'matching':
+        systemPrompt += " Create a matching exercise with 4 pairs to match.";
+        userPrompt = `Create a matching pairs exercise about ${topic} for writing students.
+        Format as JSON with:
+        {
+          "question": "match these items",
+          "instruction": "instructional text for the student",
+          "matchingPairs": [
+            {"left": "item 1", "right": "matching definition 1"},
+            {"left": "item 2", "right": "matching definition 2"},
+            {"left": "item 3", "right": "matching definition 3"},
+            {"left": "item 4", "right": "matching definition 4"}
+          ],
+          "explanation": "explanation of the matching concepts"
+        }`;
+        break;
+        
+      case 'reorder':
+        systemPrompt += " Create a reordering exercise with 4 items to put in the correct sequence.";
+        userPrompt = `Create a reordering exercise about ${topic} for writing students.
+        Format as JSON with:
+        {
+          "question": "arrange these items in the correct order",
+          "instruction": "instructional text for the student",
+          "reorderItems": [
+            {"id": "item1", "text": "first item text"},
+            {"id": "item2", "text": "second item text"},
+            {"id": "item3", "text": "third item text"},
+            {"id": "item4", "text": "fourth item text"}
+          ],
+          "correctOrder": ["item1", "item2", "item3", "item4"],
+          "explanation": "explanation of why this order is correct"
+        }`;
+        break;
+        
+      default:
+        // Default to multiple-choice if type is not recognized
+        return generateExercise(levelId, topic);
+    }
+    
+    // Call OpenAI API
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o",
+      messages: [
+        {
+          role: "system",
+          content: systemPrompt
+        },
+        {
+          role: "user",
+          content: userPrompt
+        }
+      ],
+      temperature: 0.7,
+      max_tokens: 1000,
+      response_format: { type: "json_object" }
+    });
+    
+    // Parse response
+    const content = response.choices[0]?.message?.content || '';
+    const exerciseData = JSON.parse(content);
+    
+    // Format to Exercise type based on exercise type
+    const baseExercise = {
+      id: `${levelId}-${exerciseType}-${Date.now()}`,
+      levelId,
+      type: exerciseType as any, // Cast to satisfy TypeScript
+      question: exerciseData.question,
+      instruction: exerciseData.instruction,
+      explanation: exerciseData.explanation
+    };
+    
+    switch (exerciseType) {
+      case 'multiple-choice':
+        return {
+          ...baseExercise,
+          choices: exerciseData.choices
+        } as Exercise;
+        
+      case 'fill-in-blank':
+        return {
+          ...baseExercise,
+          correctAnswer: exerciseData.correctAnswer,
+          fillOptions: exerciseData.fillOptions
+        } as Exercise;
+        
+      case 'matching':
+        return {
+          ...baseExercise,
+          matchingPairs: exerciseData.matchingPairs
+        } as Exercise;
+        
+      case 'reorder':
+        return {
+          ...baseExercise,
+          reorderItems: exerciseData.reorderItems,
+          correctOrder: exerciseData.correctOrder
+        } as Exercise;
+        
+      default:
+        throw new Error(`Unsupported exercise type: ${exerciseType}`);
+    }
+  } catch (error) {
+    console.error(`Error generating ${exerciseType} exercise:`, error);
+    // Fall back to simpler exercise
+    return generateExercise(levelId, topic);
+  }
+}
+
+// Fallback exercise set when AI is unavailable
+function getFallbackExerciseSet(levelId: string, levelType: string, count: number): ExerciseSet {
+  console.log(`Using fallback exercise set for ${levelId}`);
+  
+  // Create a set of fallback exercises based on level type
   const exercises: Exercise[] = [];
   
-  // Generate exercises for the set based on level type
   if (levelType === 'mechanics') {
-    if (levelId === 'mechanics-1') {
-      const exercise1: Exercise = {
-        id: `${levelId}-ex-1`,
-        levelId,
-        type: 'multiple-choice',
-        question: 'Which of the following is a complete sentence?',
-        instruction: 'Select the option that forms a complete thought with both a subject and a predicate.',
-        choices: [
-          {
-            id: '1',
-            text: 'Running through the park.',
-            isCorrect: false,
-            explanation: 'This is a sentence fragment - it lacks a subject.',
-          },
-          {
-            id: '2',
-            text: 'The energetic dog ran through the park.',
-            isCorrect: true,
-            explanation: 'This is a complete sentence with a subject (dog) and predicate (ran).',
-          },
-          {
-            id: '3',
-            text: 'When the sun rises.',
-            isCorrect: false,
-            explanation: 'This is a dependent clause - it cannot stand alone.',
-          },
-          {
-            id: '4',
-            text: 'Beautiful and peaceful.',
-            isCorrect: false,
-            explanation: 'These are just adjectives without a subject or predicate.',
-          },
-        ],
-        explanation: 'A complete sentence must have a subject (who/what) and a predicate (action/state) to express a complete thought.',
-      };
-      exercises.push(exercise1);
-      
-      // Add a fill-in-blank exercise
-      const exercise2: Exercise = {
-        id: `${levelId}-ex-2`,
-        levelId,
-        type: 'fill-in-blank',
-        question: 'Complete this sentence with the correct verb form: "Everyone in the classroom _____ excited about the field trip."',
-        instruction: 'Type the correct verb that agrees with the subject "Everyone".',
-        correctAnswer: 'is',
-        fillOptions: ['is', 'are', 'were', 'be'],
-        explanation: 'The subject "Everyone" is singular, so it takes the singular verb "is". Even though we may be referring to many people, collective nouns like "everyone" are treated as singular in English.',
-      };
-      exercises.push(exercise2);
-      
-      // Add a matching exercise
-      const exercise3: Exercise = {
-        id: `${levelId}-ex-3`,
-        levelId,
-        type: 'matching',
-        question: 'Match each grammatical term with its correct definition.',
-        instruction: 'For each term on the left, type the corresponding letter of its definition on the right.',
-        matchingPairs: [
-          {left: 'Subject', right: 'The person, place, or thing that performs the action'},
-          {left: 'Predicate', right: 'The part of the sentence containing the verb'},
-          {left: 'Object', right: 'The person, place, or thing that receives the action'},
-          {left: 'Adjective', right: 'A word that describes a noun'}
-        ],
-        explanation: 'Understanding these basic grammatical terms is essential for analyzing sentence structure and creating well-formed sentences.',
-      };
-      exercises.push(exercise3);
-      
-      // Add a reorder exercise
-      const exercise4: Exercise = {
-        id: `${levelId}-ex-4`,
-        levelId,
-        type: 'reorder',
-        question: 'Arrange these words to form a grammatically correct sentence.',
-        instruction: 'Move the items up or down to create a properly structured sentence.',
-        reorderItems: [
-          {id: 'item1', text: 'The excited students'},
-          {id: 'item2', text: 'quickly gathered'},
-          {id: 'item3', text: 'their books and supplies'},
-          {id: 'item4', text: 'before leaving for the field trip.'}
-        ],
-        correctOrder: ['item1', 'item2', 'item3', 'item4'],
-        explanation: 'A well-formed English sentence typically follows the subject-verb-object pattern, with modifiers and clauses adding detail in specific positions.',
-      };
-      exercises.push(exercise4);
-    } else if (levelId === 'mechanics-2') {
-      const exercise1: Exercise = {
-        id: `${levelId}-ex-1`,
-        levelId,
-        type: 'multiple-choice',
-        question: 'Which sentence uses commas correctly?',
-        instruction: 'Select the option with proper comma usage.',
-        choices: [
-          {
-            id: '1',
-            text: 'After eating the dog took a nap.',
-            isCorrect: false,
-            explanation: 'A comma is needed after "eating" to separate the introductory phrase.',
-          },
-          {
-            id: '2',
-            text: 'She bought apples, oranges and bananas at the store.',
-            isCorrect: false,
-            explanation: 'A serial comma is missing after "oranges" in this list.',
-          },
-          {
-            id: '3',
-            text: 'My friend, who lives in Paris, is visiting next week.',
-            isCorrect: true,
-            explanation: 'This correctly uses commas to set off the non-restrictive clause.',
-          },
-          {
-            id: '4',
-            text: 'They went to the beach, but, they forgot sunscreen.',
-            isCorrect: false,
-            explanation: 'The second comma is unnecessary after "but".',
-          },
-        ],
-        explanation: 'Commas are used to separate items in a list, set off introductory elements, join independent clauses, and separate non-restrictive clauses.',
-      };
-      exercises.push(exercise1);
-      // Add more mechanics-2 exercises...
-    }
+    // Basic sentence structure fallbacks
+    exercises.push({
+      id: `${levelId}-ex-1`,
+      levelId,
+      type: 'multiple-choice',
+      question: 'Which of the following is a complete sentence?',
+      instruction: 'Select the option that forms a complete thought with both a subject and a predicate.',
+      choices: [
+        {
+          id: '1',
+          text: 'Running through the park.',
+          isCorrect: false,
+          explanation: 'This is a sentence fragment - it lacks a subject.',
+        },
+        {
+          id: '2',
+          text: 'The energetic dog ran through the park.',
+          isCorrect: true,
+          explanation: 'This is a complete sentence with a subject (dog) and predicate (ran).',
+        },
+        {
+          id: '3',
+          text: 'When the sun rises.',
+          isCorrect: false,
+          explanation: 'This is a dependent clause - it cannot stand alone.',
+        },
+        {
+          id: '4',
+          text: 'Beautiful and peaceful.',
+          isCorrect: false,
+          explanation: 'These are just adjectives without a subject or predicate.',
+        },
+      ],
+      explanation: 'A complete sentence must have a subject (who/what) and a predicate (action/state) to express a complete thought.',
+    });
+    
+    // Fill-in-blank exercise
+    exercises.push({
+      id: `${levelId}-ex-2`,
+      levelId,
+      type: 'fill-in-blank',
+      question: 'Complete this sentence with the correct verb form: "Everyone in the classroom _____ excited about the field trip."',
+      instruction: 'Type the correct verb that agrees with the subject "Everyone".',
+      correctAnswer: 'is',
+      fillOptions: ['is', 'are', 'were', 'be'],
+      explanation: 'The subject "Everyone" is singular, so it takes the singular verb "is". Even though we may be referring to many people, collective nouns like "everyone" are treated as singular in English.',
+    });
+    
   } else if (levelType === 'sequencing') {
-    // Implement sequencing exercises with various types
-    const exercise1: Exercise = {
+    // Paragraph transition fallbacks
+    exercises.push({
       id: `${levelId}-ex-1`,
       levelId,
       type: 'multiple-choice',
@@ -335,34 +489,15 @@ export async function generateExerciseSet(options: AIRequestOptions): Promise<Ex
         },
       ],
       explanation: 'Good transitions connect ideas between paragraphs by showing relationships between the topics.',
-    };
-    exercises.push(exercise1);
+    });
     
-    // Add a reorder exercise for paragraph organization
-    const exercise2: Exercise = {
-      id: `${levelId}-ex-2`,
-      levelId,
-      type: 'reorder',
-      question: 'Arrange these sentences to form a logical paragraph about photosynthesis.',
-      instruction: 'Drag the sentences into the correct order to create a coherent explanation of photosynthesis.',
-      reorderItems: [
-        {id: 'item1', text: 'Photosynthesis is the process by which plants convert light energy into chemical energy.'},
-        {id: 'item2', text: 'This process takes place in the chloroplasts, primarily in plant leaves.'},
-        {id: 'item3', text: 'The plants use carbon dioxide, water, and sunlight to produce glucose and oxygen.'},
-        {id: 'item4', text: 'This chemical reaction is essential for maintaining life on Earth as it provides both food and oxygen.'}
-      ],
-      correctOrder: ['item1', 'item2', 'item3', 'item4'],
-      explanation: 'A well-structured paragraph typically begins with a topic sentence, followed by supporting details, and ends with a conclusion or transition.',
-    };
-    exercises.push(exercise2);
-    
-    // Add a matching exercise for transition words
-    const exercise3: Exercise = {
+    // Matching exercise for transitions
+    exercises.push({
       id: `${levelId}-ex-3`,
       levelId,
       type: 'matching',
       question: 'Match each transition word or phrase with its purpose in writing.',
-      instruction: 'For each transition term on the left, type the corresponding letter of its function on the right.',
+      instruction: 'For each transition term on the left, identify its function on the right.',
       matchingPairs: [
         {left: 'However', right: 'To show contrast'},
         {left: 'Therefore', right: 'To show result or conclusion'},
@@ -370,24 +505,10 @@ export async function generateExerciseSet(options: AIRequestOptions): Promise<Ex
         {left: 'Similarly', right: 'To show comparison'}
       ],
       explanation: 'Transition words and phrases are essential for guiding readers through your writing by showing the relationships between ideas.',
-    };
-    exercises.push(exercise3);
+    });
     
-    // Add a fill-in-blank exercise
-    const exercise4: Exercise = {
-      id: `${levelId}-ex-4`,
-      levelId,
-      type: 'fill-in-blank',
-      question: 'Complete this sentence with an appropriate transition word: "The research clearly supports the theory; _____, more studies are needed to confirm these findings."',
-      instruction: 'Type a transition word that shows a contrasting relationship.',
-      correctAnswer: 'however',
-      fillOptions: ['however', 'therefore', 'similarly', 'consequently'],
-      explanation: 'When introducing a contrasting idea, transition words like "however," "nevertheless," or "on the other hand" signal to the reader that the information that follows will present a different perspective or limitation.',
-    };
-    exercises.push(exercise4);
-  } else if (levelType === 'voice') {
-    // Implement voice exercises with various types
-    const exercise1: Exercise = {
+  } else { // Voice exercises
+    exercises.push({
       id: `${levelId}-ex-1`,
       levelId,
       type: 'multiple-choice',
@@ -420,28 +541,10 @@ export async function generateExerciseSet(options: AIRequestOptions): Promise<Ex
         },
       ],
       explanation: 'Academic voice is characterized by formal, objective, and precise language that avoids colloquialisms and emotional expressions.',
-    };
-    exercises.push(exercise1);
+    });
     
-    // Add a matching exercise for voice styles
-    const exercise2: Exercise = {
-      id: `${levelId}-ex-2`,
-      levelId,
-      type: 'matching',
-      question: 'Match each writing sample with its appropriate writing style or voice.',
-      instruction: 'For each writing sample on the left, identify the writing style it represents.',
-      matchingPairs: [
-        {left: 'Research indicates a correlation between variables A and B.', right: 'Academic'},
-        {left: 'Hey! Check out this amazing new product I found!', right: 'Advertising'},
-        {left: 'Once upon a time, in a land far away...', right: 'Narrative'},
-        {left: 'We hold these truths to be self-evident...', right: 'Formal/Legal'}
-      ],
-      explanation: 'Different contexts require different writing styles. Recognizing and adapting to the appropriate voice for your audience and purpose is essential for effective communication.',
-    };
-    exercises.push(exercise2);
-    
-    // Add a fill-in-blank exercise for tone
-    const exercise3: Exercise = {
+    // Fill-in-blank exercise for tone
+    exercises.push({
       id: `${levelId}-ex-3`,
       levelId,
       type: 'fill-in-blank',
@@ -450,34 +553,35 @@ export async function generateExerciseSet(options: AIRequestOptions): Promise<Ex
       correctAnswer: 'beneficial',
       fillOptions: ['beneficial', 'ok', 'fine', 'alright'],
       explanation: 'In persuasive writing, word choice matters tremendously. Strong words with positive or negative connotations can influence how readers perceive your argument.',
-    };
-    exercises.push(exercise3);
-    
-    // Add a reorder exercise for developing an argument
-    const exercise4: Exercise = {
-      id: `${levelId}-ex-4`,
-      levelId,
-      type: 'reorder',
-      question: 'Arrange these sentences to create a compelling argument about renewable energy.',
-      instruction: 'Order these sentences to build a logical and persuasive case for renewable energy.',
-      reorderItems: [
-        {id: 'item1', text: 'Renewable energy sources like solar and wind power are becoming increasingly available.'},
-        {id: 'item2', text: 'Our dependence on fossil fuels is causing significant environmental damage.'},
-        {id: 'item3', text: 'We must transition to cleaner energy alternatives for a sustainable future.'},
-        {id: 'item4', text: 'The technology for renewable energy has become more affordable in recent years.'}
-      ],
-      correctOrder: ['item2', 'item1', 'item4', 'item3'],
-      explanation: 'A persuasive argument often begins by identifying a problem, presents solutions, addresses practicality, and ends with a call to action.',
-    };
-    exercises.push(exercise4);
+    });
   }
   
-  // Fill with more generic exercises if needed to reach count
+  // Add a generic reorder exercise
+  exercises.push({
+    id: `${levelId}-ex-4`,
+    levelId,
+    type: 'reorder',
+    question: 'Arrange these words to form a grammatically correct sentence.',
+    instruction: 'Move the items up or down to create a properly structured sentence.',
+    reorderItems: [
+      {id: 'item1', text: 'The excited students'},
+      {id: 'item2', text: 'quickly gathered'},
+      {id: 'item3', text: 'their books and supplies'},
+      {id: 'item4', text: 'before leaving for the field trip.'}
+    ],
+    correctOrder: ['item1', 'item2', 'item3', 'item4'],
+    explanation: 'A well-formed English sentence typically follows the subject-verb-object pattern, with modifiers and clauses adding detail in specific positions.',
+  });
+  
+  // Ensure we have the requested number of exercises
   while (exercises.length < count) {
-    const topics = ['writing', 'grammar', 'punctuation', 'structure'];
-    const topic = topics[Math.floor(Math.random() * topics.length)];
-    const exercise = await generateExercise(levelId, topic);
-    exercises.push(exercise);
+    // Duplicate one of the existing exercises with a modified ID
+    const sourceExercise = exercises[Math.floor(Math.random() * exercises.length)];
+    const duplicateExercise = {
+      ...sourceExercise,
+      id: `${sourceExercise.id}-copy-${exercises.length}`
+    };
+    exercises.push(duplicateExercise);
   }
   
   // Get titles and descriptions based on level
@@ -489,7 +593,7 @@ export async function generateExerciseSet(options: AIRequestOptions): Promise<Ex
     levelId,
     title,
     description,
-    exercises,
+    exercises: exercises.slice(0, count), // Ensure we only return the requested count
     requiredScore: 90, // PRD requirement: 90% accuracy to proceed
   };
 }
@@ -559,7 +663,7 @@ export async function getWritingFeedback(text: string): Promise<WritingFeedback>
     
     // Call OpenAI API
     const response = await openai.chat.completions.create({
-      model: "gpt-3.5-turbo",
+      model: "gpt-4o",
       messages: [
         {
           role: "system",
@@ -681,7 +785,7 @@ export async function getWritersBlockPrompts(
     
     // Call OpenAI API
     const response = await openai.chat.completions.create({
-      model: "gpt-3.5-turbo",
+      model: "gpt-4o",
       messages: [
         {
           role: "system",
@@ -827,7 +931,7 @@ export async function scoreWriting(
     
     // Call OpenAI API
     const response = await openai.chat.completions.create({
-      model: "gpt-3.5-turbo",
+      model: "gpt-4o",
       messages: [
         {
           role: "system",
