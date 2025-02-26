@@ -189,7 +189,7 @@ export default function CreativeScreen() {
               title="Regenerate"
               onPress={generatePrompts}
               variant="outline"
-              icon={RefreshCw}
+              icon={<RefreshCw size={20} color={colors.primary} />}
               style={styles.regenerateButton}
             />
           </View>

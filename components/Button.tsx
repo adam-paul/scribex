@@ -11,6 +11,7 @@ type ButtonProps = {
   textStyle?: TextStyle;
   disabled?: boolean;
   icon?: React.ReactNode;
+  iconPosition?: 'left' | 'right';
 };
 
 export function Button({
@@ -22,6 +23,7 @@ export function Button({
   textStyle,
   disabled = false,
   icon,
+  iconPosition = 'left',
 }: ButtonProps) {
   const getHeight = () => {
     switch (size) {
@@ -33,7 +35,7 @@ export function Button({
 
   const renderContent = () => (
     <View style={styles.contentContainer}>
-      {icon && <View style={styles.iconContainer}>{icon}</View>}
+      {icon && iconPosition === 'left' && <View style={styles.leftIconContainer}>{icon}</View>}
       <Text style={[
         styles.text,
         variant !== 'primary' && variant === 'secondary' && styles.secondaryText,
@@ -42,6 +44,7 @@ export function Button({
       ]}>
         {title}
       </Text>
+      {icon && iconPosition === 'right' && <View style={styles.rightIconContainer}>{icon}</View>}
     </View>
   );
 
@@ -95,8 +98,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  iconContainer: {
+  leftIconContainer: {
     marginRight: 8,
+  },
+  rightIconContainer: {
+    marginLeft: 8,
   },
   secondaryButton: {
     backgroundColor: colors.surface,

@@ -141,7 +141,7 @@ export default function ModalScreen() {
               />
               <Button
                 title="Continue"
-                icon={ArrowRight}
+                icon={<ArrowRight size={20} color={colors.surface} />}
                 iconPosition="right"
                 onPress={handleContinueToGuide}
                 disabled={!selectedTopic}
@@ -168,7 +168,7 @@ export default function ModalScreen() {
                   />
                   <Button
                     title="Create Project"
-                    icon={SendHorizonal}
+                    icon={<SendHorizonal size={20} color={colors.surface} />}
                     iconPosition="right"
                     onPress={handleCreateProject}
                   />

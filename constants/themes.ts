@@ -8,6 +8,7 @@ export type SeasonalTheme = {
   primaryColor: string;
   secondaryColor: string;
   accentColor: string;
+  textColor: string;
   backgroundImage: ImageSourcePropType;
   iconSet: 'default' | 'winter' | 'spring' | 'summer' | 'autumn';
   availableFrom: Date;
@@ -24,6 +25,7 @@ export const SEASONAL_THEMES: SeasonalTheme[] = [
     primaryColor: colors.primary, // Use existing color palette as base
     secondaryColor: colors.secondary,
     accentColor: colors.accent,
+    textColor: colors.text,
     backgroundImage: require('@/assets/images/splash-icon.png'), // Use existing icon as placeholder
     iconSet: 'default',
     availableFrom: new Date(2024, 0, 1), // Jan 1
@@ -36,6 +38,7 @@ export const SEASONAL_THEMES: SeasonalTheme[] = [
     primaryColor: colors.secondary,
     secondaryColor: colors.accent,
     accentColor: colors.primary,
+    textColor: colors.text,
     backgroundImage: require('@/assets/images/splash-icon.png'), // Use existing icon as placeholder
     iconSet: 'spring',
     availableFrom: new Date(2024, 3, 1), // Apr 1
@@ -48,6 +51,7 @@ export const SEASONAL_THEMES: SeasonalTheme[] = [
     primaryColor: colors.accent,
     secondaryColor: colors.primary,
     accentColor: colors.secondary,
+    textColor: colors.text,
     backgroundImage: require('@/assets/images/splash-icon.png'), // Use existing icon as placeholder
     iconSet: 'summer',
     availableFrom: new Date(2024, 6, 1), // Jul 1
@@ -60,6 +64,7 @@ export const SEASONAL_THEMES: SeasonalTheme[] = [
     primaryColor: colors.error,
     secondaryColor: colors.success,
     accentColor: colors.warning,
+    textColor: colors.text,
     backgroundImage: require('@/assets/images/splash-icon.png'), // Use existing icon as placeholder
     iconSet: 'autumn',
     availableFrom: new Date(2024, 9, 1),  // Oct 1
