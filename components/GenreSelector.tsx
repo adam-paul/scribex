@@ -1,6 +1,6 @@
 import React from 'react';
 import { StyleSheet, View, Text, ScrollView, TouchableOpacity } from 'react-native';
-import { BookOpen, FileText, Feather, Radio, Mail, Mic } from 'lucide-react-native';
+import { BookOpen, FileText, Feather, Radio, Mail, Mic, Edit } from 'lucide-react-native';
 import { colors } from '@/constants/colors';
 import { WritingGenre } from '@/types/writing';
 
@@ -13,6 +13,13 @@ type GenreOption = {
 };
 
 const GENRES: GenreOption[] = [
+  {
+    value: 'just-write',
+    label: 'Just Write',
+    description: 'Free-form writing without constraints',
+    icon: Edit,
+    color: '#2196F3', // Blue
+  },
   {
     value: 'story',
     label: 'Story',

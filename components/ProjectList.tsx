@@ -1,6 +1,6 @@
 import React from 'react';
 import { StyleSheet, View, Text, FlatList, TouchableOpacity } from 'react-native';
-import { BookOpen, FileText, Feather, Radio, Mail, Mic, Clock, Calendar, Trash2 } from 'lucide-react-native';
+import { BookOpen, FileText, Feather, Radio, Mail, Mic, Clock, Calendar, Trash2, Edit } from 'lucide-react-native';
 import { colors } from '@/constants/colors';
 import { WritingProject, WritingGenre } from '@/types/writing';
 
@@ -12,6 +12,7 @@ const GENRE_ICONS: Record<WritingGenre, any> = {
   journalism: Radio,
   letter: Mail,
   speech: Mic,
+  'just-write': Edit,
 };
 
 // Map of genre to color
@@ -22,6 +23,7 @@ const GENRE_COLORS: Record<WritingGenre, string> = {
   journalism: '#FFC107',
   letter: '#4CAF50',
   speech: '#FF5722',
+  'just-write': '#2196F3',
 };
 
 // Function to format date in a readable way

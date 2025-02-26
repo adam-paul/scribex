@@ -1,4 +1,4 @@
-export type WritingGenre = 'essay' | 'story' | 'poetry' | 'journalism' | 'letter' | 'speech';
+export type WritingGenre = 'essay' | 'story' | 'poetry' | 'journalism' | 'letter' | 'speech' | 'just-write';
 
 export type WritingProject = {
   id: string;

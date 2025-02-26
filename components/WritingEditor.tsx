@@ -87,6 +87,14 @@ export function WritingEditor({
     setFontSize(prev => Math.max(prev - 2, 12));
   };
   
+  // Get appropriate placeholder text based on genre
+  const getPlaceholderText = () => {
+    if (project.genre === 'just-write') {
+      return 'Start writing anything that comes to mind...';
+    }
+    return `Start writing your ${project.genre} here...`;
+  };
+  
   return (
     <KeyboardAvoidingView
       style={styles.container}
@@ -152,13 +160,14 @@ export function WritingEditor({
           multiline
           value={content}
           onChangeText={onContentChange}
-          placeholder={`Start writing your ${project.genre} here...`}
+          placeholder={getPlaceholderText()}
           placeholderTextColor={colors.textMuted}
           autoCapitalize="sentences"
           autoCorrect
           keyboardType="default"
           returnKeyType="default"
           blurOnSubmit={false}
+          autoFocus={project.genre === 'just-write' && !content} // Auto-focus for Just Write mode
         />
       </View>
       

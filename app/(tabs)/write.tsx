@@ -2,7 +2,7 @@ import { StyleSheet, View, Text, Alert, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useState, useEffect } from 'react';
 import { router } from 'expo-router';
-import { PenSquare, FolderPlus, Sparkles, ArrowLeftCircle } from 'lucide-react-native';
+import { PenSquare, FolderPlus, Sparkles, ArrowLeftCircle, Edit } from 'lucide-react-native';
 import { colors } from '@/constants/colors';
 import { Button } from '@/components/Button';
 import { ProjectList } from '@/components/ProjectList';
@@ -21,6 +21,7 @@ export default function WriteScreen() {
   const { 
     projects = [], // Provide a default empty array if somehow undefined
     currentProject, 
+    activeProjectId,
     focusMode,
     createProject,
     updateProject,
@@ -33,8 +34,9 @@ export default function WriteScreen() {
   
   // Local UI state
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [showProjects, setShowProjects] = useState(true);
+  const [showProjects, setShowProjects] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [tempContent, setTempContent] = useState(''); // Store unsaved content
   
   // Load user data when the component mounts
   useEffect(() => {
@@ -49,16 +51,46 @@ export default function WriteScreen() {
     loadData();
   }, [isAuthenticated]);
   
-  // Show project list when there's no current project
+  // Handle initial state based on the three scenarios
   useEffect(() => {
-    if (!currentProject) {
-      setShowProjects(true);
+    // If we already have a current project, keep it
+    if (currentProject) {
+      return;
     }
-  }, [currentProject]);
+    
+    // If we have an active project ID, try to load it
+    if (activeProjectId && !showProjects) {
+      const project = projects.find(p => p.id === activeProjectId);
+      if (project) {
+        setCurrentProject(activeProjectId);
+        return;
+      }
+    }
+    
+    // Otherwise, we'll show the editor with a blank "Just Write" project
+    // We don't immediately create a project, we'll wait until there's content to save
+  }, [currentProject, activeProjectId, projects, showProjects, setCurrentProject]);
+  
+  // Handle creating a "Just Write" project
+  const handleJustWrite = () => {
+    // Clear any current project
+    clearCurrentProject();
+    // Reset temp content
+    setTempContent('');
+    // Show the editor
+    setShowProjects(false);
+  };
   
   // Handle project creation
   const handleCreateProject = (title: string, genre: WritingGenre) => {
-    createProject(title, genre);
+    const newProject = createProject(title, genre);
+    
+    // If we have temporary content, add it to the new project
+    if (tempContent && genre === 'just-write') {
+      updateContent(tempContent);
+      setTempContent('');
+    }
+    
     setShowProjects(false);
   };
   
@@ -86,12 +118,26 @@ export default function WriteScreen() {
     );
   };
   
-  // Handle saving the current project
+  // Handle saving the current project or creating a new "Just Write" project
   const handleSave = async () => {
-    if (!currentProject) return;
-    
     try {
       setLoading(true);
+      
+      // If there's no current project but we have content, create a "Just Write" project
+      if (!currentProject && tempContent.trim()) {
+        const timestamp = new Date();
+        const formattedDate = timestamp.toLocaleDateString('en-US', {
+          month: 'short',
+          day: 'numeric',
+          year: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit'
+        });
+        
+        const newProject = createProject(`Just Write - ${formattedDate}`, 'just-write');
+        updateContent(tempContent);
+        setTempContent('');
+      }
       
       // Get the projects array from the store (not the whole state)
       const currentProjects = useWritingStore.getState().projects;
@@ -107,19 +153,45 @@ export default function WriteScreen() {
       setLoading(false);
       
       if (success) {
-        Alert.alert('Saved', 'Your project has been saved successfully to the cloud.');
+        Alert.alert('Saved', 'Your writing has been saved successfully to the cloud.');
       } else {
-        Alert.alert('Warning', 'Project saved locally, but there was an issue saving to the cloud.');
+        Alert.alert('Warning', 'Writing saved locally, but there was an issue saving to the cloud.');
       }
     } catch (error) {
       setLoading(false);
       console.error('Error during save:', error);
-      Alert.alert('Error', 'There was a problem saving your project. Please try again.');
+      Alert.alert('Error', 'There was a problem saving your writing. Please try again.');
     }
   };
   
   // Handle going back to project list
   const handleBackToProjects = async () => {
+    // If we have unsaved content in the temp editor, ask if the user wants to save it
+    if (!currentProject && tempContent.trim()) {
+      Alert.alert(
+        'Save Writing',
+        'Do you want to save your writing before viewing projects?',
+        [
+          { 
+            text: 'Discard', 
+            style: 'destructive',
+            onPress: () => {
+              setTempContent('');
+              setShowProjects(true);
+            }
+          },
+          { 
+            text: 'Save', 
+            onPress: async () => {
+              await handleSave();
+              setShowProjects(true);
+            }
+          }
+        ]
+      );
+      return;
+    }
+    
     // Save current changes before navigating back
     if (currentProject) {
       try {
@@ -141,33 +213,55 @@ export default function WriteScreen() {
     setShowProjects(true);
   };
   
-  // No longer needed - refresh functionality removed
-
+  // Handle content changes in the editor
+  const handleContentChange = (content: string) => {
+    if (currentProject) {
+      // If we have a current project, update its content
+      updateContent(content);
+    } else {
+      // Otherwise, store the content temporarily
+      setTempContent(content);
+    }
+  };
+  
   // Render project list screen
   if (showProjects) {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.header}>
           <Text style={styles.title}>My Writing</Text>
-          <View style={styles.headerButtons}>
-            {loading && (
-              <ActivityIndicator color={colors.primary} style={styles.loadingIndicator} />
-            )}
-            <Button
-              title="New Project"
-              icon={<FolderPlus size={16} color={colors.surface} />}
-              onPress={() => setShowCreateModal(true)}
-              variant="primary"
-              size="small"
-            />
-          </View>
         </View>
+        
+        <View style={styles.actionButtons}>
+          <Button
+            title="Just Write"
+            icon={<Edit size={16} color={colors.surface} />}
+            onPress={handleJustWrite}
+            variant="primary"
+            size="medium"
+            style={styles.actionButton}
+          />
+          <Button
+            title="New Project"
+            icon={<FolderPlus size={16} color={colors.surface} />}
+            onPress={() => setShowCreateModal(true)}
+            variant="secondary"
+            size="medium"
+            style={styles.actionButton}
+          />
+        </View>
+        
+        {loading && (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator color={colors.primary} size="small" />
+          </View>
+        )}
         
         {/* Ensure projects is an array before rendering */}
         {(!projects || projects.length === 0) && !loading ? (
           <View style={styles.emptyState}>
             <Text style={styles.emptyStateText}>
-              No writing projects found. Create a new project to get started!
+              No writing projects found. Create a new project or just start writing!
             </Text>
           </View>
         ) : (
@@ -187,44 +281,50 @@ export default function WriteScreen() {
     );
   }
   
-  // Render editor screen when a project is selected
-  if (currentProject) {
-    return (
-      <SafeAreaView style={styles.container}>
-        {!focusMode && (
-          <View style={styles.editorHeader}>
-            <Button
-              icon={<ArrowLeftCircle size={16} color={colors.primary} />}
-              title="Projects"
-              onPress={handleBackToProjects}
-              variant="outline"
-              size="small"
-            />
-            <Text style={styles.projectTitle}>{currentProject.title}</Text>
-            <Button
-              icon={<Sparkles size={16} color={colors.primary} />}
-              title="Ideas"
-              onPress={() => router.push('/modal')}
-              variant="outline"
-              size="small"
-            />
-          </View>
-        )}
-        
-        <WritingEditor
-          project={currentProject}
-          content={currentProject.content}
-          onContentChange={updateContent}
-          onSave={handleSave}
-          focusMode={focusMode}
-          onToggleFocusMode={toggleFocusMode}
-        />
-      </SafeAreaView>
-    );
-  }
-  
-  // Fallback if neither condition is met (should not happen)
-  return null;
+  // Render editor screen when a project is selected or in "Just Write" mode
+  return (
+    <SafeAreaView style={styles.container}>
+      {!focusMode && (
+        <View style={styles.editorHeader}>
+          <Button
+            icon={<ArrowLeftCircle size={16} color={colors.primary} />}
+            title="Projects"
+            onPress={handleBackToProjects}
+            variant="outline"
+            size="small"
+          />
+          <Text style={styles.projectTitle}>
+            {currentProject ? currentProject.title : "Just Write"}
+          </Text>
+          <Button
+            icon={<Sparkles size={16} color={colors.primary} />}
+            title="Ideas"
+            onPress={() => router.push('/modal')}
+            variant="outline"
+            size="small"
+          />
+        </View>
+      )}
+      
+      <WritingEditor
+        project={currentProject || { 
+          id: 'temp',
+          title: 'Just Write',
+          content: tempContent,
+          genre: 'just-write',
+          wordCount: tempContent.trim().split(/\s+/).filter(Boolean).length || 0,
+          dateCreated: new Date().toISOString(),
+          dateModified: new Date().toISOString(),
+          completed: false
+        }}
+        content={currentProject ? currentProject.content : tempContent}
+        onContentChange={handleContentChange}
+        onSave={handleSave}
+        focusMode={focusMode}
+        onToggleFocusMode={toggleFocusMode}
+      />
+    </SafeAreaView>
+  );
 }
 
 const styles = StyleSheet.create({
@@ -233,26 +333,27 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
     padding: 16,
-  },
-  headerButtons: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
+    paddingBottom: 8,
   },
   title: {
     fontSize: 28,
     fontWeight: 'bold',
     color: colors.text,
   },
-  refreshButton: {
-    marginRight: 8,
+  actionButtons: {
+    flexDirection: 'row',
+    paddingHorizontal: 16,
+    paddingBottom: 16,
+    gap: 12,
   },
-  loadingIndicator: {
-    marginRight: 16,
+  actionButton: {
+    flex: 1,
+  },
+  loadingContainer: {
+    paddingHorizontal: 16,
+    paddingBottom: 16,
+    alignItems: 'center',
   },
   emptyState: {
     flex: 1,

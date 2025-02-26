@@ -8,6 +8,7 @@ interface WritingState {
   // Project State
   projects: WritingProject[];
   currentProject: WritingProject | null;
+  activeProjectId: string | null; // Track the last active project
   
   // Focus Mode State
   focusMode: boolean;
@@ -48,6 +49,7 @@ export const useWritingStore = create<WritingState>()(
       // Initial state
       projects: [] as WritingProject[], // Explicitly type as array to ensure it's never undefined
       currentProject: null,
+      activeProjectId: null, // Initialize as null
       focusMode: false,
       selectedGenre: null,
       
@@ -62,6 +64,7 @@ export const useWritingStore = create<WritingState>()(
           return {
             projects: [...currentProjects, newProject],
             currentProject: newProject,
+            activeProjectId: id, // Set as active project
           };
         });
         
@@ -113,11 +116,15 @@ export const useWritingStore = create<WritingState>()(
         const currentProjects = Array.isArray(projects) ? projects : [];
         
         const project = currentProjects.find((p) => p.id === id) || null;
-        set({ currentProject: project });
+        set({ 
+          currentProject: project,
+          activeProjectId: project ? id : null, // Update active project ID
+        });
         return project;
       },
       
       clearCurrentProject: () => {
+        // We don't clear activeProjectId here, as we want to remember the last project
         set({ currentProject: null });
       },
       

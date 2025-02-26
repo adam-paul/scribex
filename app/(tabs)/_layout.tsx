@@ -4,9 +4,13 @@ import { Home, BookOpen, Sparkles, Trophy, User } from 'lucide-react-native';
 import { Platform } from 'react-native';
 import { colors } from '@/constants/colors';
 
+// Check if we need to update the initial route name based on the active project
+const initialRouteName = 'write';
+
 export default function TabLayout() {
   return (
     <Tabs
+      initialRouteName={initialRouteName}
       screenOptions={{
         tabBarStyle: {
           backgroundColor: colors.tabBar,
