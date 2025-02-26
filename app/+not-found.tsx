@@ -1,3 +1,4 @@
+import React from 'react';
 import { Link, Stack, Redirect } from "expo-router";
 import { StyleSheet, Text, View } from "react-native";
 import { useAuth } from '@/contexts/AuthContext';

@@ -1,7 +1,9 @@
 import { StateStorage } from 'zustand/middleware';
+import { PersistStorage, StorageValue } from 'zustand/middleware/persist';
 import supabaseService from './supabase-service';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
+import { UserProgress } from '@/types/learning';
 
 // Define a fallback storage mechanism
 const getStorageMechanism = () => {
@@ -46,9 +48,9 @@ const getStorageMechanism = () => {
 const localStorageMechanism = getStorageMechanism();
 
 // Implement StateStorage interface for Zustand middleware
-export const createSupabaseStorage = (storeName: string): StateStorage => {
+export const createSupabaseStorage = <T>(storeName: string): PersistStorage<T> => {
   return {
-    getItem: async (name: string): Promise<string | null> => {
+    getItem: async (name: string): Promise<StorageValue<T> | null> => {
       try {
         // First try to get from local storage regardless of login state
         const localData = await localStorageMechanism.getItem(name);
@@ -58,7 +60,7 @@ export const createSupabaseStorage = (storeName: string): StateStorage => {
         
         // If no user is logged in, just return local data
         if (!user) {
-          return localData;
+          return localData as StorageValue<T> | null;
         }
         
         // If user is logged in, try to get from Supabase
@@ -77,15 +79,15 @@ export const createSupabaseStorage = (storeName: string): StateStorage => {
             const stringifiedData = JSON.stringify(remoteData);
             // Also update local storage with remote data
             await localStorageMechanism.setItem(name, stringifiedData);
-            return stringifiedData;
+            return stringifiedData as unknown as StorageValue<T>;
           }
           
           // If no remote data, fall back to local data
-          return localData;
+          return localData as unknown as StorageValue<T> | null;
         } catch (supabaseError) {
           console.error(`Supabase fetch error: ${supabaseError}`);
           // Fall back to local data if Supabase fails
-          return localData;
+          return localData as unknown as StorageValue<T> | null;
         }
       } catch (error) {
         console.error(`Error getting ${storeName}:`, error);
@@ -93,17 +95,10 @@ export const createSupabaseStorage = (storeName: string): StateStorage => {
       }
     },
     
-    setItem: async (name: string, value: string | any): Promise<void> => {
+    setItem: async (name: string, value: StorageValue<T>): Promise<void> => {
       try {
-        // Convert value to string if it's not already a string
-        let valueString: string;
-        
-        if (typeof value === 'string') {
-          valueString = value;
-        } else {
-          // Simply stringify object - it should be a serializable object
-          valueString = JSON.stringify(value);
-        }
+        // Convert value to string if needed
+        const valueString = typeof value === 'string' ? value : JSON.stringify(value);
         
         // Save to local storage
         await localStorageMechanism.setItem(name, valueString);
@@ -117,15 +112,10 @@ export const createSupabaseStorage = (storeName: string): StateStorage => {
         // Parse value safely
         let parsedValue;
         try {
-          parsedValue = JSON.parse(valueString);
+          parsedValue = typeof value === 'string' ? JSON.parse(value) : value;
         } catch (parseError) {
-          // If parsing fails, try using the original value if it was already an object
-          if (typeof value === 'object' && value !== null) {
-            parsedValue = value;
-          } else {
-            console.error(`JSON parse error: ${parseError}`);
-            return; // If we can't parse, don't proceed with Supabase save
-          }
+          console.error(`JSON parse error: ${parseError}`);
+          return; // If we can't parse, don't proceed with Supabase save
         }
         
         // Save to Supabase based on store type
@@ -142,7 +132,7 @@ export const createSupabaseStorage = (storeName: string): StateStorage => {
             } else {
               // If neither structure matches, try to save the whole object but log a warning
               console.warn('Unexpected progress format, attempting to save:', parsedValue);
-              await supabaseService.saveProgress(parsedValue);
+              await supabaseService.saveProgress(parsedValue as UserProgress);
             }
           } else if (storeName === 'writing') {
             // For writing, extract ONLY the projects array to prevent nesting
@@ -180,8 +170,20 @@ export const createSupabaseStorage = (storeName: string): StateStorage => {
         // Clear data in Supabase
         try {
           if (storeName === 'progress') {
-            // Use an empty object directly for progress
-            await supabaseService.saveProgress({});
+            // Use default progress for reset
+            const emptyProgress: UserProgress = {
+              currentLevel: 'mechanics-1',
+              mechanicsProgress: 0,
+              sequencingProgress: 0,
+              voiceProgress: 0,
+              completedLevels: [],
+              unlockedLevels: ['mechanics-1'],
+              totalScore: 0,
+              dailyStreak: 0,
+              achievements: [],
+              lastUpdated: Date.now(),
+            };
+            await supabaseService.saveProgress(emptyProgress);
           } else if (storeName === 'writing') {
             // Use an empty array directly for writing projects
             await supabaseService.saveWritingProjects([]);
@@ -197,8 +199,8 @@ export const createSupabaseStorage = (storeName: string): StateStorage => {
 };
 
 // Helper functions to create specific storage instances
-export const createProgressStorage = () => 
-  createSupabaseStorage('progress');
+export const createProgressStorage = <T>() => 
+  createSupabaseStorage<T>('progress');
 
-export const createWritingStorage = () => 
-  createSupabaseStorage('writing');
+export const createWritingStorage = <T>() => 
+  createSupabaseStorage<T>('writing');

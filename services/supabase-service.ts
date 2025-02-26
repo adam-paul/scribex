@@ -1,6 +1,7 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { Platform } from 'react-native';
 import Constants from 'expo-constants';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { UserProgress } from '@/types/learning';
 import { WritingProject } from '@/types/writing';
 
@@ -8,11 +9,26 @@ import { WritingProject } from '@/types/writing';
 const SUPABASE_URL = Constants.expoConfig?.extra?.supabaseUrl;
 const SUPABASE_ANON_KEY = Constants.expoConfig?.extra?.supabaseAnonKey;
 
+// User profile type
+export type UserProfile = {
+  id: string;
+  user_id: string;
+  username: string;
+  display_name?: string;
+  level: number;
+  xp: number;
+  rank?: number;
+  avatar_url?: string;
+  created_at: string;
+  updated_at: string;
+};
+
 // Types
 export type SupabaseUser = {
   id: string;
   email?: string;
   username?: string;
+  profile?: UserProfile;
 };
 
 // Singleton class to manage Supabase instance
@@ -36,9 +52,7 @@ class SupabaseService {
           : {
               getItem: async (key: string) => {
                 try {
-                  // Import AsyncStorage directly, not destructured
-                  const AsyncStorage = await import('@react-native-async-storage/async-storage');
-                  return AsyncStorage.default.getItem(key);
+                  return AsyncStorage.getItem(key);
                 } catch (e) {
                   console.error('AsyncStorage getItem error:', e);
                   return null;
@@ -46,16 +60,14 @@ class SupabaseService {
               },
               setItem: async (key: string, value: string) => {
                 try {
-                  const AsyncStorage = await import('@react-native-async-storage/async-storage');
-                  return AsyncStorage.default.setItem(key, value);
+                  return AsyncStorage.setItem(key, value);
                 } catch (e) {
                   console.error('AsyncStorage setItem error:', e);
                 }
               },
               removeItem: async (key: string) => {
                 try {
-                  const AsyncStorage = await import('@react-native-async-storage/async-storage');
-                  return AsyncStorage.default.removeItem(key);
+                  return AsyncStorage.removeItem(key);
                 } catch (e) {
                   console.error('AsyncStorage removeItem error:', e);
                 }
@@ -87,6 +99,13 @@ class SupabaseService {
         id: data.user.id,
         email: data.user.email || undefined,
       };
+      
+      // Try to fetch the user profile
+      const profile = await this.getUserProfile();
+      if (profile) {
+        this.user.profile = profile;
+      }
+      
       return this.user;
     }
     return null;
@@ -113,7 +132,7 @@ class SupabaseService {
       options: {
         // Set custom redirect URL for email verification
         emailRedirectTo: Platform.OS === 'web' 
-          ? `${window.location.origin}/auth/callback` 
+          ? `${window.location.origin}/email-verified.html` 
           : 'scribex://auth/callback',
       },
     });
@@ -321,6 +340,171 @@ class SupabaseService {
       return data?.projects_data as WritingProject[];
     } catch (e) {
       console.error('Exception getting writing projects:', e);
+      return null;
+    }
+  }
+
+  // Profile Management Methods
+  public async getUserProfile(): Promise<UserProfile | null> {
+    if (!this.user) {
+      console.error('Cannot get profile: No user is logged in');
+      return null;
+    }
+
+    try {
+      const { data, error } = await this.supabase
+        .from('user_profiles')
+        .select('*')
+        .eq('user_id', this.user.id)
+        .single();
+
+      if (error) {
+        // If the error is 'not found', this user doesn't have a profile yet
+        if (error.code === 'PGRST116') {
+          return null;
+        }
+        console.error('Error getting user profile:', error.message);
+        return null;
+      }
+
+      return data as UserProfile;
+    } catch (e) {
+      console.error('Exception getting user profile:', e);
+      return null;
+    }
+  }
+
+  public async createOrUpdateUserProfile(profileData: Partial<UserProfile>): Promise<UserProfile | null> {
+    if (!this.user) {
+      console.error('Cannot update profile: No user is logged in');
+      return null;
+    }
+
+    try {
+      // Prepare the profile data with user_id
+      const profile = {
+        user_id: this.user.id,
+        updated_at: new Date().toISOString(),
+        ...profileData
+      };
+
+      // Check if profile exists
+      const existingProfile = await this.getUserProfile();
+      
+      if (existingProfile) {
+        // Update existing profile
+        const { data, error } = await this.supabase
+          .from('user_profiles')
+          .update(profile)
+          .eq('user_id', this.user.id)
+          .select()
+          .single();
+
+        if (error) {
+          console.error('Error updating user profile:', error.message);
+          return null;
+        }
+
+        return data as UserProfile;
+      } else {
+        // Create new profile
+        const { data, error } = await this.supabase
+          .from('user_profiles')
+          .insert({
+            ...profile,
+            created_at: new Date().toISOString(),
+            level: 1, // Default starting level
+            xp: 0,    // Default starting XP
+          })
+          .select()
+          .single();
+
+        if (error) {
+          console.error('Error creating user profile:', error.message);
+          return null;
+        }
+
+        return data as UserProfile;
+      }
+    } catch (e) {
+      console.error('Exception updating user profile:', e);
+      return null;
+    }
+  }
+
+  public async updateUserLevel(level: number, xp: number): Promise<boolean> {
+    if (!this.user) {
+      console.error('Cannot update level: No user is logged in');
+      return false;
+    }
+
+    try {
+      const { error } = await this.supabase
+        .from('user_profiles')
+        .update({ 
+          level, 
+          xp,
+          updated_at: new Date().toISOString() 
+        })
+        .eq('user_id', this.user.id);
+
+      if (error) {
+        console.error('Error updating user level:', error.message);
+        return false;
+      }
+
+      return true;
+    } catch (e) {
+      console.error('Exception updating user level:', e);
+      return false;
+    }
+  }
+
+  public async getLeaderboardRanking(limit: number = 10): Promise<UserProfile[] | null> {
+    try {
+      const { data, error } = await this.supabase
+        .from('user_profiles')
+        .select('*')
+        .order('xp', { ascending: false })
+        .limit(limit);
+
+      if (error) {
+        console.error('Error getting leaderboard:', error.message);
+        return null;
+      }
+
+      return data as UserProfile[];
+    } catch (e) {
+      console.error('Exception getting leaderboard:', e);
+      return null;
+    }
+  }
+
+  public async getUserRank(): Promise<number | null> {
+    if (!this.user) {
+      console.error('Cannot get rank: No user is logged in');
+      return null;
+    }
+
+    try {
+      // Get all profiles ordered by XP
+      const { data, error } = await this.supabase
+        .from('user_profiles')
+        .select('user_id, xp')
+        .order('xp', { ascending: false });
+
+      if (error) {
+        console.error('Error getting user rank:', error.message);
+        return null;
+      }
+
+      // Find the user's position in the array (0-indexed)
+      const userIndex = data.findIndex(profile => profile.user_id === this.user?.id);
+      
+      // Return 1-indexed rank (or null if not found)
+      return userIndex >= 0 ? userIndex + 1 : null;
+    } catch (e) {
+      console.error('Exception getting user rank:', e);
       return null;
     }
   }

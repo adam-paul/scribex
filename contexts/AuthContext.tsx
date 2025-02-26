@@ -1,6 +1,6 @@
 import React, { createContext, useState, useEffect, useContext, ReactNode, useMemo } from 'react';
 import { useRouter, useSegments } from 'expo-router';
-import supabaseService, { SupabaseUser } from '@/services/supabase-service';
+import supabaseService, { SupabaseUser, UserProfile } from '@/services/supabase-service';
 import { useProgressStore } from '@/stores/progress-store';
 import { useWritingStore } from '@/stores/writing-store';
 
@@ -10,6 +10,7 @@ interface AuthContextType {
   isLoading: boolean;
   signOut: () => Promise<void>;
   loadUserData: () => Promise<void>;
+  updateUserProfile: (profileData: Partial<UserProfile>) => Promise<UserProfile | null>;
 }
 
 // Create the context with a default value
@@ -19,6 +20,7 @@ const AuthContext = createContext<AuthContextType>({
   isLoading: true,
   signOut: async () => {},
   loadUserData: async () => {},
+  updateUserProfile: async () => null,
 });
 
 // Hook for components to get the auth context
@@ -69,6 +71,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           // Initialize with empty projects array if nothing found
           console.log('No writing projects found, initializing empty array');
           setProjects([]);
+        }
+        
+        // Fetch or create user profile
+        const userProfile = await supabaseService.getUserProfile();
+        if (!userProfile) {
+          console.log('No user profile found, creating default profile');
+          // Create a default profile if none exists
+          await supabaseService.createOrUpdateUserProfile({
+            username: user.email?.split('@')[0] || `user_${user.id.substring(0, 8)}`,
+            level: 1,
+            xp: 0
+          });
+          
+          // Refresh user to get the newly created profile
+          await supabaseService.refreshUser();
+        } else {
+          console.log('User profile loaded from Supabase');
         }
         
         setDataLoaded(true);
@@ -228,6 +247,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, [isLoading, user, loadUserData]);
 
+  // Update user profile
+  const updateUserProfile = async (profileData: Partial<UserProfile>): Promise<UserProfile | null> => {
+    if (!user) return null;
+    
+    try {
+      const updatedProfile = await supabaseService.createOrUpdateUserProfile(profileData);
+      
+      if (updatedProfile) {
+        // Update the user object with the new profile
+        setUser(prevUser => {
+          if (!prevUser) return null;
+          return {
+            ...prevUser,
+            profile: updatedProfile
+          };
+        });
+        return updatedProfile;
+      }
+      return null;
+    } catch (error) {
+      console.error('Error updating user profile:', error);
+      return null;
+    }
+  };
+
   // Memoize the context value to prevent unnecessary re-renders
   const value = useMemo(() => {
     return {
@@ -236,8 +280,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       isLoading,
       signOut,
       loadUserData: handleLoadUserData,
+      updateUserProfile,
     };
-  }, [user, isLoading, signOut, handleLoadUserData]);
+  }, [user, isLoading, signOut, handleLoadUserData, updateUserProfile]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

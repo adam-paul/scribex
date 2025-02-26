@@ -46,3 +46,7 @@ yarn-error.*
 
 # Misc
 **/schema.json
+
+SUPABASE_SETUP.md
+public/
+supabase-schema.sql
