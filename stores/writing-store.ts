@@ -46,7 +46,7 @@ export const useWritingStore = create<WritingState>()(
   persist(
     (set, get) => ({
       // Initial state
-      projects: [],
+      projects: [] as WritingProject[], // Explicitly type as array to ensure it's never undefined
       currentProject: null,
       focusMode: false,
       selectedGenre: null,
@@ -56,10 +56,14 @@ export const useWritingStore = create<WritingState>()(
         const id = `project_${Date.now()}`;
         const newProject = createEmptyProject(id, title, genre);
         
-        set((state) => ({
-          projects: [...state.projects, newProject],
-          currentProject: newProject,
-        }));
+        set((state) => {
+          // Ensure state.projects is always an array before spreading
+          const currentProjects = Array.isArray(state.projects) ? state.projects : [];
+          return {
+            projects: [...currentProjects, newProject],
+            currentProject: newProject,
+          };
+        });
         
         return newProject;
       },
@@ -67,34 +71,48 @@ export const useWritingStore = create<WritingState>()(
       updateProject: (projectUpdate) => {
         const { id, ...updates } = projectUpdate;
         
-        set((state) => ({
-          projects: state.projects.map((project) => 
-            project.id === id 
-              ? { 
-                  ...project, 
-                  ...updates,
-                  dateModified: new Date().toISOString(),
-                } 
-              : project
-          ),
-          // Also update current project if it's the one being updated
-          currentProject: state.currentProject?.id === id
-            ? { ...state.currentProject, ...updates, dateModified: new Date().toISOString() }
-            : state.currentProject,
-        }));
+        set((state) => {
+          // Ensure state.projects is always an array before operating on it
+          const currentProjects = Array.isArray(state.projects) ? state.projects : [];
+          
+          return {
+            projects: currentProjects.map((project) => 
+              project.id === id 
+                ? { 
+                    ...project, 
+                    ...updates,
+                    dateModified: new Date().toISOString(),
+                  } 
+                : project
+            ),
+            // Also update current project if it's the one being updated
+            currentProject: state.currentProject?.id === id
+              ? { ...state.currentProject, ...updates, dateModified: new Date().toISOString() }
+              : state.currentProject,
+          };
+        });
       },
       
       deleteProject: (id) => {
-        set((state) => ({
-          projects: state.projects.filter((project) => project.id !== id),
-          // Clear current project if it's the one being deleted
-          currentProject: state.currentProject?.id === id ? null : state.currentProject,
-        }));
+        set((state) => {
+          // Ensure state.projects is always an array before operating on it
+          const currentProjects = Array.isArray(state.projects) ? state.projects : [];
+          
+          return {
+            projects: currentProjects.filter((project) => project.id !== id),
+            // Clear current project if it's the one being deleted
+            currentProject: state.currentProject?.id === id ? null : state.currentProject,
+          };
+        });
       },
       
       // Editor management
       setCurrentProject: (id) => {
-        const project = get().projects.find((p) => p.id === id) || null;
+        // Ensure projects is always an array before find operation
+        const projects = get().projects || [];
+        const currentProjects = Array.isArray(projects) ? projects : [];
+        
+        const project = currentProjects.find((p) => p.id === id) || null;
         set({ currentProject: project });
         return project;
       },
@@ -122,11 +140,16 @@ export const useWritingStore = create<WritingState>()(
         // Also update the project in the projects array
         const { currentProject } = get();
         if (currentProject) {
-          get().updateProject({
-            id: currentProject.id,
-            content,
-            wordCount,
-          });
+          // Call updateProject using a try-catch to handle any potential errors
+          try {
+            get().updateProject({
+              id: currentProject.id,
+              content,
+              wordCount,
+            });
+          } catch (error) {
+            console.error('Error updating content:', error);
+          }
         }
       },
       
@@ -145,12 +168,10 @@ export const useWritingStore = create<WritingState>()(
       // Add listener to sync with Supabase when changes occur
       onRehydrateStorage: () => (state) => {
         if (state) {
-          // Sync with Supabase when the store is hydrated
-          const user = supabaseService.getCurrentUser();
-          if (user && state.projects) {
-            supabaseService.saveWritingProjects(state.projects)
-              .catch(err => console.error('Failed to sync writing projects:', err));
-          }
+          console.log('Writing store rehydrated successfully');
+          // Do not automatically sync on rehydration
+          // Data syncing should only happen after explicit load/save operations
+          // This prevents race conditions with authentication
         }
       }
     }

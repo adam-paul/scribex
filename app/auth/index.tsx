@@ -1,18 +1,17 @@
 import React from 'react';
 import { View, StyleSheet, Image, Text, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
-import { Stack } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AuthForm from '@/components/AuthForm';
 import { colors } from '@/constants/colors';
 
+/**
+ * Auth screen is a standalone gated experience
+ * It takes no dependencies on the rest of the app
+ * Authentication checks are now handled at the root level
+ */
 export default function AuthScreen() {
   return (
     <SafeAreaView style={styles.container}>
-      <Stack.Screen options={{ 
-        title: 'ScribeX', 
-        headerShown: false 
-      }} />
-      
       <KeyboardAvoidingView 
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.keyboardAvoid}
@@ -68,4 +67,4 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     textAlign: 'center',
   },
-});
+}); 

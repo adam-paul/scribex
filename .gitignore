@@ -43,3 +43,6 @@ yarn-error.*
 .supabase
 **/supabase/.branches
 **/supabase/.temp
+
+# Misc
+**/schema.json

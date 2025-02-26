@@ -81,29 +81,66 @@ export const useProgressStore = create<ProgressState>()(
       // Check progress and unlock next levels and categories if thresholds are met
       checkAndUnlockNextContent: async () => {
         const { progress } = get();
-        const { mechanicsProgress, sequencingProgress, unlockedLevels } = progress;
+        const { mechanicsProgress, sequencingProgress, unlockedLevels, completedLevels, currentLevel } = progress;
+        
+        // Check if current level is completed and should unlock next level
+        if (mechanicsProgress >= 100 && currentLevel === 'mechanics-1') {
+          console.log('Mechanics-1 completed, unlocking mechanics-2');
+          // Unlock mechanics-2 when mechanics-1 is 100% complete
+          if (!unlockedLevels.includes('mechanics-2')) {
+            await get().unlockLevel('mechanics-2');
+          }
+          
+          // Mark the current level as completed
+          if (!completedLevels.includes(currentLevel)) {
+            await get().completeLevel(currentLevel);
+          }
+          
+          // Set current level to mechanics-2
+          set((state) => ({
+            progress: {
+              ...state.progress,
+              currentLevel: 'mechanics-2',
+              mechanicsProgress: 0, // Reset mechanics progress for the new level
+              lastUpdated: Date.now()
+            }
+          }));
+        }
         
         // Check for unlocking sequencing category
-        if (mechanicsProgress >= CATEGORY_UNLOCK_THRESHOLDS.sequencing) {
-          // Find the first sequencing level
-          const firstSequencingLevel = LEVELS.find(l => 
-            l.type === 'sequencing' && l.order === 1
-          );
+        if (mechanicsProgress >= 100 && currentLevel === 'mechanics-2') {
+          console.log('Mechanics-2 completed, checking for sequencing unlock');
           
-          if (firstSequencingLevel && !unlockedLevels.includes(firstSequencingLevel.id)) {
-            await get().unlockLevel(firstSequencingLevel.id);
+          // Mark mechanics-2 as completed
+          if (!completedLevels.includes(currentLevel)) {
+            await get().completeLevel(currentLevel);
+          }
+          
+          // Unlock sequencing if we've reached the threshold
+          if (mechanicsProgress >= CATEGORY_UNLOCK_THRESHOLDS.sequencing) {
+            const sequencingLevel = LEVELS.find(l => l.id === 'sequencing-1');
+            if (sequencingLevel && !unlockedLevels.includes(sequencingLevel.id)) {
+              console.log('Unlocking sequencing-1');
+              await get().unlockLevel(sequencingLevel.id);
+              
+              // Update current level to sequencing-1
+              set((state) => ({
+                progress: {
+                  ...state.progress,
+                  currentLevel: 'sequencing-1',
+                  lastUpdated: Date.now()
+                }
+              }));
+            }
           }
         }
         
         // Check for unlocking voice category
         if (sequencingProgress >= CATEGORY_UNLOCK_THRESHOLDS.voice) {
-          // Find the first voice level
-          const firstVoiceLevel = LEVELS.find(l => 
-            l.type === 'voice' && l.order === 1
-          );
-          
-          if (firstVoiceLevel && !unlockedLevels.includes(firstVoiceLevel.id)) {
-            await get().unlockLevel(firstVoiceLevel.id);
+          const voiceLevel = LEVELS.find(l => l.id === 'voice-1');
+          if (voiceLevel && !unlockedLevels.includes(voiceLevel.id)) {
+            console.log('Unlocking voice-1');
+            await get().unlockLevel(voiceLevel.id);
           }
         }
       },
@@ -273,6 +310,13 @@ export const useProgressStore = create<ProgressState>()(
           }
         });
         
+        // Log the current progress to help debug progression
+        const { mechanicsProgress, currentLevel } = get().progress;
+        console.log(`Updated ${category} progress to ${value}%`, { 
+          currentLevel,
+          mechanicsProgress
+        });
+        
         // Check if any new categories or levels should be unlocked
         await get().checkAndUnlockNextContent();
         
@@ -362,6 +406,9 @@ export const useProgressStore = create<ProgressState>()(
           return;
         }
         console.log('Progress store rehydrated successfully');
+        // Do not automatically sync on rehydration
+        // Data syncing should only happen after explicit load/save operations
+        // This prevents race conditions with authentication
       }
     }
   )

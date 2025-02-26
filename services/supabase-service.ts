@@ -1,6 +1,8 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { Platform } from 'react-native';
 import Constants from 'expo-constants';
+import { UserProgress } from '@/types/learning';
+import { WritingProject } from '@/types/writing';
 
 // Get environment variables from app.config.js
 const SUPABASE_URL = Constants.expoConfig?.extra?.supabaseUrl;
@@ -174,63 +176,34 @@ class SupabaseService {
   }
 
   // Progress Management Methods
-  public async saveProgress(progress: any): Promise<boolean> {
+  public async saveProgress(progress: UserProgress): Promise<boolean> {
     if (!this.user) {
       console.error('Cannot save progress: No user is logged in');
       return false;
     }
 
     try {
-      // Handle different input types to ensure we have a valid object
-      let validProgress: any;
-      
-      if (typeof progress === 'string') {
-        try {
-          validProgress = JSON.parse(progress);
-        } catch (parseError) {
-          console.error('Error parsing progress string:', parseError);
+      // First verify that authentication is complete and the user exists in the database
+      // This prevents foreign key constraint violations
+      try {
+        const { data: userData, error: userError } = await this.supabase.auth.getUser();
+        
+        if (userError || !userData.user || userData.user.id !== this.user.id) {
+          console.error('Cannot save progress: Authentication not fully established');
           return false;
         }
-      } else if (progress && typeof progress === 'object') {
-        // Handle special objects like ReadableNativeMap
-        try {
-          // Try to convert to a plain object by JSON round-trip
-          validProgress = JSON.parse(JSON.stringify(progress));
-        } catch (jsonError) {
-          console.error('Error converting progress to plain object:', jsonError);
-          
-          // Fall back to manual property extraction
-          validProgress = {};
-          try {
-            Object.keys(progress).forEach(key => {
-              try {
-                validProgress[key] = progress[key];
-              } catch (e) {
-                console.error(`Couldn't access property ${key}:`, e);
-              }
-            });
-          } catch (e) {
-            console.error('Failed to extract progress properties:', e);
-            return false;
-          }
-        }
-      } else {
-        console.error('Invalid progress format, expected object or string');
+      } catch (authError) {
+        console.error('Error verifying authentication:', authError);
         return false;
       }
 
-      // Ensure the progress is actually valid before saving
-      if (!validProgress || typeof validProgress !== 'object') {
-        console.error('Progress data is not a valid object');
-        return false;
-      }
-
+      // Now proceed with the save operation
       const { error } = await this.supabase
         .from('user_progress')
         .upsert(
           { 
             user_id: this.user.id,
-            progress_data: validProgress,
+            progress_data: progress,
             updated_at: new Date().toISOString()
           },
           { onConflict: 'user_id' }
@@ -248,7 +221,7 @@ class SupabaseService {
     }
   }
 
-  public async getProgress(): Promise<any | null> {
+  public async getProgress(): Promise<UserProgress | null> {
     if (!this.user) {
       console.error('Cannot get progress: No user is logged in');
       return null;
@@ -262,15 +235,15 @@ class SupabaseService {
         .single();
 
       if (error) {
-        // If the error is 'not found', this is the first time - return empty object
+        // If the error is 'not found', this is the first time - return null
         if (error.code === 'PGRST116') {
-          return {};
+          return null;
         }
         console.error('Error getting progress:', error.message);
         return null;
       }
 
-      return data?.progress_data || null;
+      return data?.progress_data as UserProgress;
     } catch (e) {
       console.error('Exception getting progress:', e);
       return null;
@@ -278,79 +251,34 @@ class SupabaseService {
   }
 
   // Writing Projects Management Methods
-  public async saveWritingProjects(projects: any): Promise<boolean> {
+  public async saveWritingProjects(projects: WritingProject[]): Promise<boolean> {
     if (!this.user) {
       console.error('Cannot save writing projects: No user is logged in');
       return false;
     }
 
     try {
-      // Handle different input types to ensure we have a valid array
-      let validProjects: any[];
-      
-      if (typeof projects === 'string') {
-        try {
-          const parsed = JSON.parse(projects);
-          validProjects = Array.isArray(parsed) ? parsed : [parsed];
-        } catch (parseError) {
-          console.error('Error parsing projects string:', parseError);
-          validProjects = [];
+      // First verify that authentication is complete and the user exists in the database
+      // This prevents foreign key constraint violations
+      try {
+        const { data: userData, error: userError } = await this.supabase.auth.getUser();
+        
+        if (userError || !userData.user || userData.user.id !== this.user.id) {
+          console.error('Cannot save writing projects: Authentication not fully established');
+          return false;
         }
-      } else if (projects && typeof projects === 'object') {
-        // Check if it's an array
-        if (Array.isArray(projects)) {
-          // Try to convert to a plain array by JSON round-trip
-          try {
-            validProjects = JSON.parse(JSON.stringify(projects));
-          } catch (jsonError) {
-            console.error('Error converting projects to plain array:', jsonError);
-            
-            // Fall back to manual conversion
-            validProjects = [];
-            try {
-              projects.forEach((item, index) => {
-                try {
-                  if (typeof item === 'object') {
-                    const plainItem = {};
-                    Object.keys(item).forEach(key => {
-                      try {
-                        plainItem[key] = item[key];
-                      } catch (e) {
-                        console.error(`Couldn't access property ${key} on item ${index}:`, e);
-                      }
-                    });
-                    validProjects.push(plainItem);
-                  } else {
-                    validProjects.push(item);
-                  }
-                } catch (e) {
-                  console.error(`Error processing item ${index}:`, e);
-                }
-              });
-            } catch (e) {
-              console.error('Failed to extract projects array:', e);
-            }
-          }
-        } else {
-          // Not an array but an object, maybe it contains projects
-          try {
-            validProjects = [JSON.parse(JSON.stringify(projects))];
-          } catch (jsonError) {
-            console.error('Error converting project object:', jsonError);
-            validProjects = [projects];
-          }
-        }
-      } else {
-        console.error('Invalid projects format, expected array, object or string');
-        validProjects = [];
+      } catch (authError) {
+        console.error('Error verifying authentication:', authError);
+        return false;
       }
 
+      // Now proceed with the save operation
       const { error } = await this.supabase
         .from('user_writing_projects')
         .upsert(
           { 
             user_id: this.user.id,
-            projects_data: validProjects,
+            projects_data: projects,
             updated_at: new Date().toISOString()
           },
           { onConflict: 'user_id' }
@@ -368,7 +296,7 @@ class SupabaseService {
     }
   }
 
-  public async getWritingProjects(): Promise<any | null> {
+  public async getWritingProjects(): Promise<WritingProject[] | null> {
     if (!this.user) {
       console.error('Cannot get writing projects: No user is logged in');
       return null;
@@ -390,7 +318,7 @@ class SupabaseService {
         return null;
       }
 
-      return data?.projects_data || [];
+      return data?.projects_data as WritingProject[];
     } catch (e) {
       console.error('Exception getting writing projects:', e);
       return null;

@@ -12,6 +12,7 @@ export const LEVELS: LearningLevel[] = [
     progress: 0,
     completed: false,
     unlocked: true,
+    order: 1, // Add order for proper sequencing
   },
   {
     id: 'mechanics-2',
@@ -24,6 +25,7 @@ export const LEVELS: LearningLevel[] = [
     progress: 0,
     completed: false,
     unlocked: false,
+    order: 2, // Add order for proper sequencing
   },
   {
     id: 'sequencing-1',
@@ -36,6 +38,7 @@ export const LEVELS: LearningLevel[] = [
     progress: 0,
     completed: false,
     unlocked: false,
+    order: 1, // Add order for proper sequencing
   },
   {
     id: 'voice-1',
@@ -48,6 +51,7 @@ export const LEVELS: LearningLevel[] = [
     progress: 0,
     completed: false,
     unlocked: false,
+    order: 1, // Add order for proper sequencing
   },
 ];
 

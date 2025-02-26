@@ -1,3 +1,4 @@
+import React from 'react';
 import { Tabs } from 'expo-router';
 import { Home, BookOpen, Sparkles, Trophy, User } from 'lucide-react-native';
 import { Platform } from 'react-native';
@@ -19,20 +20,11 @@ export default function TabLayout() {
         },
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.tabBarInactive,
-        headerStyle: {
-          backgroundColor: colors.background,
-        },
-        headerTintColor: colors.text,
-        headerShadowVisible: false,
+        headerShown: false, // This removes the navigation headers completely
         tabBarShowLabel: true,
         tabBarLabelStyle: {
           fontSize: 12,
         },
-        // Remove animation options that are causing issues
-        // animation: 'slide_from_right',
-        // animationTypeForReplace: 'push',
-        // freezeOnBlur: false,
-        
         // Improve performance
         lazy: true,
         tabBarHideOnKeyboard: true,
@@ -43,7 +35,6 @@ export default function TabLayout() {
         options={{
           title: 'Journey',
           tabBarIcon: ({ color }) => <Home size={22} color={color} />,
-          headerShown: Platform.OS !== 'web',
         }}
       />
       <Tabs.Screen

@@ -5,6 +5,83 @@
 - Start web: `npm run start-web` or `npm run start-web-dev` (with DEBUG flag)
 - Type checking: `npx tsc --noEmit`
 
+## Application Architecture
+Below is the control flow diagram for the ScribeX application:
+
+```
+┌───────────────────────────────────────────────────────────────────┐
+│                      ScribeX Application                           │
+└───────────────┬─────────────────────────────────┬─────────────────┘
+                │                                 │
+┌───────────────▼───────────────┐   ┌─────────────▼─────────────┐
+│        Core Infrastructure     │   │      User Management      │
+│  ┌─────────────────────────┐  │   │  ┌─────────────────────┐  │
+│  │ Initialization          │  │   │  │ Authentication      │  │
+│  │ Theme/Configuration     │  │   │  │ Profile Management  │  │
+│  └─────────────────────────┘  │   │  └─────────────────────┘  │
+└───────────────┬───────────────┘   └────────────┬──────────────┘
+                │                                │
+                ▼                                ▼
+┌───────────────────────────────────────────────────────────────────┐
+│                        Navigation Layer                            │
+│  ┌──────────┐   ┌──────────┐   ┌──────────┐   ┌──────────┐   ┌──────────┐
+│  │ Journey  │   │  Write   │   │ Creative │   │ Leader-  │   │ Profile  │
+│  │ (REDI)   │   │ (OWL)    │   │ Tools    │   │ board    │   │          │
+│  │          │   │          │   │          │   │          │   │          │
+│  └────┬─────┘   └────┬─────┘   └────┬─────┘   └────┬─────┘   └────┬─────┘
+└───────┼──────────────┼──────────────┼──────────────┼──────────────┼─────┘
+        │              │              │              │              │
+        ▼              ▼              ▼              ▼              ▼
+┌────────────────────────────────────────────────────────────────────────┐
+│                        AI Services Layer                                │
+│  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────────────┐ │
+│  │ Exercise        │  │ Writing         │  │ Writer's Block          │ │
+│  │ Generation      │  │ Feedback        │  │ Assistance              │ │
+│  └────────┬────────┘  └────────┬────────┘  └─────────────┬───────────┘ │
+└───────────┼─────────────────────┼────────────────────────┼──────────────┘
+            │                     │                        │
+            ▼                     ▼                        ▼
+┌───────────────────┐      ┌──────────────────┐     ┌──────────────────┐
+│ REDI Module       │      │ OWL Module       │     │ Social Features  │
+│ (Structured       │      │ (Free Writing    │     │ (Leaderboards,   │
+│  Exercises)       │      │  Projects)       │     │  Profiles)       │
+└─────────┬─────────┘      └────────┬─────────┘     └────────┬─────────┘
+          │                         │                        │
+          │                         │                        │
+          ▼                         ▼                        ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│                     State Management Layer                           │
+│  ┌─────────────┐   ┌─────────────┐   ┌─────────────┐   ┌──────────┐ │
+│  │ Progress    │   │ Writing     │   │ User        │   │ Settings │ │
+│  │ Store       │   │ Store       │   │ Store       │   │ Store    │ │
+│  └──────┬──────┘   └──────┬──────┘   └──────┬──────┘   └────┬─────┘ │
+└─────────┼─────────────────┼─────────────────┼──────────────┼─────────┘
+          │                 │                 │              │
+          ▼                 ▼                 ▼              ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│                        Data Access Layer                             │
+│  ┌─────────────┐   ┌─────────────┐   ┌─────────────────────────┐    │
+│  │ Local Cache │◄──┤ AsyncStorage│◄──┤ Supabase Database       │    │
+│  │ (Zustand)   │   │             │   │ & Storage               │    │
+│  └─────────────┘   └─────────────┘   └─────────────────────────┘    │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### Architecture Key Components:
+
+- **Two-Pronged Approach**: 
+  - REDI (Reflective Exercise on Direct Instruction): Structured exercises for mechanics, sequencing, voice
+  - OWL (Open World Learning): Free-form writing projects with templates and real-world applications
+
+- **AI Integration**:
+  - AI services layer permeates all aspects of the application
+  - Provides exercise generation, writing feedback, and creative assistance
+
+- **Data Flow**:
+  - State is managed through Zustand stores
+  - Data persists locally in AsyncStorage
+  - Cloud sync with Supabase for cross-device usage
+
 ## AI Integration
 - OpenAI API with GPT-4o model is used for NLP capabilities
 - Set up `.env` file with OPENAI_API_KEY before running (see .env.example)

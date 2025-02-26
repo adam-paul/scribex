@@ -6,15 +6,37 @@ import { colors } from '@/constants/colors';
 import { Card } from '@/components/Card';
 import { Button } from '@/components/Button';
 import { useAuth } from '@/contexts/AuthContext';
+import { useEffect, useState } from 'react';
+import { useProgressStore } from '@/stores/progress-store';
 
 export default function ProfileScreen() {
-  const { user, isAuthenticated, signOut } = useAuth();
+  const { user, isAuthenticated, signOut, loadUserData } = useAuth();
   const router = useRouter();
+  // removed refreshing state
+  const totalScore = useProgressStore(state => state.progress.totalScore);
+  const achievements = useProgressStore(state => state.progress.achievements);
+  
+  // Force redirection if not authenticated
+  useEffect(() => {
+    if (!isAuthenticated) {
+      console.log('Profile screen: Not authenticated, redirecting to auth');
+      router.replace('/auth');
+      return;
+    }
+    
+    // Load user data if authenticated
+    loadUserData();
+  }, [isAuthenticated, router]);
+  
+  // If not authenticated, don't render anything
+  if (!isAuthenticated || !user) {
+    return null;
+  }
   
   const stats = [
-    { icon: BookOpen, label: 'Words Written', value: '12,450' },
-    { icon: Trophy, label: 'Challenges Won', value: '8' },
-    { icon: Award, label: 'Achievements', value: '15' },
+    { icon: BookOpen, label: 'Total Score', value: totalScore.toString() },
+    { icon: Trophy, label: 'Levels Completed', value: useProgressStore(state => state.progress.completedLevels.length).toString() },
+    { icon: Award, label: 'Achievements', value: achievements.length.toString() },
   ];
   
   const handleSignOut = () => {
@@ -33,10 +55,6 @@ export default function ProfileScreen() {
       ]
     );
   };
-  
-  const handleSignIn = () => {
-    router.push('/auth');
-  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -44,11 +62,11 @@ export default function ProfileScreen() {
         <View style={styles.header}>
           <View style={styles.headerTop}>
             <Image
-              source={{ uri: `https://i.pravatar.cc/300?u=${user?.id || 'default'}` }}
+              source={{ uri: `https://i.pravatar.cc/300?u=${user.id}` }}
               style={styles.avatar}
             />
             <View style={styles.headerText}>
-              <Text style={styles.name}>{user?.email?.split('@')[0] || 'User'}</Text>
+              <Text style={styles.name}>{user.email?.split('@')[0] || 'User'}</Text>
               <Text style={styles.level}>Level 12 Writer</Text>
             </View>
           </View>
@@ -59,7 +77,7 @@ export default function ProfileScreen() {
               variant="secondary"
               size="small"
               icon={<LogOut size={16} color={colors.textSecondary} />}
-              style={styles.signOutButton}
+              style={styles.actionButton}
             />
           </View>
         </View>
@@ -122,10 +140,14 @@ const styles = StyleSheet.create({
   },
   signOutContainer: {
     flexDirection: 'row',
-    justifyContent: 'flex-end',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  actionButton: {
+    flex: 1,
   },
   signOutButton: {
-    alignSelf: 'flex-end',
+    marginLeft: 8,
   },
   loginPrompt: {
     fontSize: 14,

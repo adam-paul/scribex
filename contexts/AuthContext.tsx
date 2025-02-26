@@ -1,12 +1,15 @@
-import React, { createContext, useState, useEffect, useContext, ReactNode } from 'react';
+import React, { createContext, useState, useEffect, useContext, ReactNode, useMemo } from 'react';
 import { useRouter, useSegments } from 'expo-router';
 import supabaseService, { SupabaseUser } from '@/services/supabase-service';
+import { useProgressStore } from '@/stores/progress-store';
+import { useWritingStore } from '@/stores/writing-store';
 
 interface AuthContextType {
   user: SupabaseUser | null;
   isAuthenticated: boolean;
   isLoading: boolean;
   signOut: () => Promise<void>;
+  loadUserData: () => Promise<void>;
 }
 
 // Create the context with a default value
@@ -15,6 +18,7 @@ const AuthContext = createContext<AuthContextType>({
   isAuthenticated: false,
   isLoading: true,
   signOut: async () => {},
+  loadUserData: async () => {},
 });
 
 // Hook for components to get the auth context
@@ -24,35 +28,94 @@ export const useAuth = () => useContext(AuthContext);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<SupabaseUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [dataLoaded, setDataLoaded] = useState(false);
   const router = useRouter();
   const segments = useSegments();
+  
+  // Access the stores for data loading - using useMemo to prevent infinite renders
+  const { resetProgress, setProgress } = useProgressStore();
+  const projects = useWritingStore(state => state.projects);
+  const setProjects = useMemo(() => {
+    return (newProjects: any[]) => {
+      // We need to manually set the projects array since there's no direct setter in the store
+      useWritingStore.setState({ projects: newProjects });
+    };
+  }, []);
+  
+  // Load user data from Supabase - memoized to prevent re-creation on every render
+  const loadUserData = useMemo(() => {
+    return async (): Promise<void> => {
+      try {
+        if (!user) return;
+        
+        console.log('Loading user data from Supabase...');
+        
+        // Fetch progress data - now properly typed
+        const progressData = await supabaseService.getProgress();
+        if (progressData) {
+          console.log('Progress data loaded from Supabase');
+          setProgress(progressData);
+        } else {
+          // Initialize with default progress if nothing found
+          resetProgress();
+        }
+        
+        // Fetch writing projects - now properly typed
+        const writingData = await supabaseService.getWritingProjects();
+        if (writingData) {
+          console.log('Writing projects loaded from Supabase:', writingData.length, 'projects');
+          setProjects(writingData);
+        } else {
+          // Initialize with empty projects array if nothing found
+          console.log('No writing projects found, initializing empty array');
+          setProjects([]);
+        }
+        
+        setDataLoaded(true);
+      } catch (error) {
+        console.error('Error loading user data:', error);
+      }
+    };
+  }, [user, setProgress, resetProgress, setProjects]);
 
-  // Set up auth state
+  // Set up auth state with improved timing
   useEffect(() => {
+    console.log('Initializing authentication state...');
+    // We'll keep the splash screen visible until auth check completes
+    
     // Check if we already have a session
     const initializeAuth = async () => {
       try {
+        console.log('Checking for existing session...');
         // Get the current session from Supabase
         const { data } = await supabaseService.getClient().auth.getSession();
         
         if (data.session) {
           // Session exists, refresh user data
+          console.log('Session found, refreshing user data...');
           const refreshedUser = await supabaseService.refreshUser();
           setUser(refreshedUser);
           console.log('User authenticated:', refreshedUser?.email);
+          
+          // Don't immediately load data - let the dedicated useEffect handle it
+          // This prevents race conditions with authentication
+          setDataLoaded(false); // Mark as not loaded to trigger the dedicated loader
+          console.log('User authenticated, data will be loaded after auth verification');
         } else {
           // No session
+          console.log('No active session found, user is not authenticated');
           setUser(null);
-          console.log('No active session found');
         }
       } catch (error) {
         console.error('Error checking authentication:', error);
         setUser(null);
       } finally {
+        // Now we can let the app proceed with proper routing
+        console.log('Authentication check complete, removing loading state');
         setIsLoading(false);
       }
     };
-
+    
     // Set up auth state listener
     const { data: { subscription } } = supabaseService.getClient().auth.onAuthStateChange(
       async (event, session) => {
@@ -61,12 +124,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (session) {
           const refreshedUser = await supabaseService.refreshUser();
           setUser(refreshedUser);
+          
+          // Load user data when signed in
+          if (event === 'SIGNED_IN') {
+            // We'll load data after setting the user, in a separate useEffect
+            setDataLoaded(false);
+          }
         } else {
-          setUser(null);
+          // Handle sign out - ensure we reset all necessary state
+          if (event === 'SIGNED_OUT') {
+            setUser(null);
+            setDataLoaded(false);
+            // Ensure we're not in loading state after sign out
+            setIsLoading(false);
+          }
         }
       }
     );
 
+    // Begin authentication check
     initializeAuth();
 
     // Clean up subscription
@@ -75,51 +151,93 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  // Handle routing based on auth state
+  // Effect to load user data whenever the user changes
+  useEffect(() => {
+    const loadDataForUser = async () => {
+      // Only load data if we have a user and haven't already loaded it
+      if (user && !dataLoaded && !isLoading) {
+        // IMPORTANT: Verify that auth is fully complete before loading data
+        try {
+          console.log('Verifying authentication status...');
+          // Double-check with Supabase that authentication is complete
+          const { data: authData } = await supabaseService.getClient().auth.getUser();
+          
+          if (authData?.user?.id !== user.id) {
+            console.log('Authentication not fully synchronized yet, waiting...');
+            // If IDs don't match, authentication isn't fully synchronized
+            return;
+          }
+          
+          console.log('Authentication verified, loading user data...');
+          // Need to set dataLoaded first to prevent infinite loop
+          setDataLoaded(true);
+          await loadUserData();
+        } catch (error) {
+          console.error('Error verifying authentication:', error);
+        }
+      }
+    };
+    
+    loadDataForUser();
+  }, [user, dataLoaded, isLoading, loadUserData]);
+
+  // Handle auth state changes - simplified to just logging
   useEffect(() => {
     if (isLoading) return;
-
-    const inAuthGroup = segments[0] === 'auth';
-    const isCallback = segments.includes('callback');
-
-    // Don't redirect if on the callback page
-    if (isCallback) return;
-
-    // Debug output
-    console.log('Auth routing check:', { 
-      user: !!user, 
-      inAuthGroup, 
-      segments: segments.join('/') 
+    
+    // Log current auth state for debugging
+    console.log('Auth state:', { 
+      authenticated: !!user, 
+      loading: isLoading
     });
+  }, [user, isLoading]);
 
-    // If user is not signed in and not on auth page, redirect to auth
-    if (!user && !inAuthGroup) {
-      console.log('Not authenticated, redirecting to auth');
-      router.replace('/auth');
-    } else if (user && inAuthGroup && segments.length === 1) {
-      // Only redirect if on the main auth page, not on callback
-      console.log('Authenticated but on auth page, redirecting to home');
-      router.replace('/');
-    }
-  }, [user, segments, isLoading, router]);
-
-  // Sign out function
+  // Sign out function - improved to avoid navigation errors
   const signOut = async () => {
     try {
+      console.log('Signing out user...');
+      // First set loading to prevent flashes during sign out
+      setIsLoading(true);
+      
+      // Clear Supabase session
       await supabaseService.signOut();
+      
+      // Clear user state - this will trigger the root index to redirect to auth
       setUser(null);
-      router.replace('/auth');
+      console.log('Sign out complete');
+      
+      // Don't use router.replace here - let the auth state change trigger navigation
+      // The root index component will handle the redirect based on isAuthenticated
     } catch (error) {
       console.error('Error signing out:', error);
+    } finally {
+      // Ensure loading state is reset
+      setIsLoading(false);
     }
   };
 
-  const value = {
-    user,
-    isAuthenticated: !!user,
-    isLoading,
-    signOut,
-  };
+  // Expose the loadUserData function
+  const handleLoadUserData = useMemo(() => {
+    return async () => {
+      // Only try to load if we're authenticated and not in loading state
+      if (!isLoading && user) {
+        // Reset the dataLoaded flag to ensure we can load again when manually requested
+        setDataLoaded(false);
+        await loadUserData();
+      }
+    };
+  }, [isLoading, user, loadUserData]);
+
+  // Memoize the context value to prevent unnecessary re-renders
+  const value = useMemo(() => {
+    return {
+      user,
+      isAuthenticated: !!user,
+      isLoading,
+      signOut,
+      loadUserData: handleLoadUserData,
+    };
+  }, [user, isLoading, signOut, handleLoadUserData]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

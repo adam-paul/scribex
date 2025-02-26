@@ -4,8 +4,8 @@ import { BookOpen, FileText, Feather, Radio, Mail, Mic, Clock, Calendar, Trash2 
 import { colors } from '@/constants/colors';
 import { WritingProject, WritingGenre } from '@/types/writing';
 
-// Map of genre to icon
-const GENRE_ICONS: Record<WritingGenre, React.ElementType> = {
+// Map of genre to icon components
+const GENRE_ICONS: Record<WritingGenre, any> = {
   story: BookOpen,
   essay: FileText,
   poetry: Feather,
@@ -40,8 +40,11 @@ interface ProjectListProps {
   onDeleteProject?: (project: WritingProject) => void;
 }
 
-export function ProjectList({ projects, onSelectProject, onDeleteProject }: ProjectListProps) {
-  if (projects.length === 0) {
+export function ProjectList({ projects = [], onSelectProject, onDeleteProject }: ProjectListProps) {
+  // IMPORTANT: Ensure projects is always an array, even if undefined is passed
+  const safeProjects = Array.isArray(projects) ? projects : [];
+  
+  if (safeProjects.length === 0) {
     return (
       <View style={styles.emptyContainer}>
         <Text style={styles.emptyText}>No projects yet</Text>
@@ -51,8 +54,8 @@ export function ProjectList({ projects, onSelectProject, onDeleteProject }: Proj
   }
 
   const renderProject = ({ item }: { item: WritingProject }) => {
-    const Icon = GENRE_ICONS[item.genre];
-    const color = GENRE_COLORS[item.genre];
+    const IconComponent = GENRE_ICONS[item.genre] || BookOpen; // Fallback to BookOpen if undefined
+    const color = GENRE_COLORS[item.genre] || '#7C4DFF'; // Fallback color
 
     return (
       <TouchableOpacity 
@@ -61,7 +64,7 @@ export function ProjectList({ projects, onSelectProject, onDeleteProject }: Proj
       >
         <View style={styles.projectHeader}>
           <View style={[styles.genreIcon, { backgroundColor: color }]}>
-            <Icon size={16} color="#FFFFFF" />
+            <IconComponent size={16} color="#FFFFFF" />
           </View>
           <Text style={styles.projectTitle}>{item.title}</Text>
         </View>
@@ -97,11 +100,16 @@ export function ProjectList({ projects, onSelectProject, onDeleteProject }: Proj
     );
   };
 
+  // Use the safe array for processing
   return (
     <FlatList
-      data={projects}
+      data={safeProjects.map(project => ({
+        ...project,
+        // Ensure each project has a valid id - generate one if missing
+        id: project.id || `project_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+      }))}
       renderItem={renderProject}
-      keyExtractor={(item) => item.id}
+      keyExtractor={(item) => item.id.toString()} // Convert to string to ensure it's a valid key
       contentContainerStyle={styles.listContainer}
     />
   );

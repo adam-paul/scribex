@@ -73,6 +73,7 @@ export const createSupabaseStorage = (storeName: string): StateStorage => {
           
           // If we got data from Supabase, use it
           if (remoteData) {
+            // The data should already be properly typed
             const stringifiedData = JSON.stringify(remoteData);
             // Also update local storage with remote data
             await localStorageMechanism.setItem(name, stringifiedData);
@@ -100,30 +101,11 @@ export const createSupabaseStorage = (storeName: string): StateStorage => {
         if (typeof value === 'string') {
           valueString = value;
         } else {
-          // Handle non-string value (like ReadableNativeMap)
-          try {
-            valueString = JSON.stringify(value);
-          } catch (stringifyError) {
-            console.error(`Error stringifying value: ${stringifyError}`);
-            // If we can't stringify, try to extract properties
-            if (value && typeof value === 'object') {
-              const extractedValue = Object.keys(value).reduce((acc, key) => {
-                try {
-                  acc[key] = value[key];
-                } catch (e) {
-                  // Skip properties that can't be accessed
-                }
-                return acc;
-              }, {});
-              valueString = JSON.stringify(extractedValue);
-            } else {
-              console.error('Unable to process value for storage');
-              return;
-            }
-          }
+          // Simply stringify object - it should be a serializable object
+          valueString = JSON.stringify(value);
         }
         
-        // Now save the string value to local storage
+        // Save to local storage
         await localStorageMechanism.setItem(name, valueString);
         
         // Check if user is logged in for Supabase sync
@@ -149,9 +131,31 @@ export const createSupabaseStorage = (storeName: string): StateStorage => {
         // Save to Supabase based on store type
         try {
           if (storeName === 'progress') {
-            await supabaseService.saveProgress(parsedValue);
+            // For progress, extract ONLY the progress data to prevent nesting
+            // Check both direct access and nested under state (Zustand persist structure)
+            if (parsedValue && parsedValue.progress) {
+              console.log('Saving only progress data to Supabase');
+              await supabaseService.saveProgress(parsedValue.progress);
+            } else if (parsedValue && parsedValue.state && parsedValue.state.progress) {
+              console.log('Saving nested progress data to Supabase');
+              await supabaseService.saveProgress(parsedValue.state.progress);
+            } else {
+              // If neither structure matches, try to save the whole object but log a warning
+              console.warn('Unexpected progress format, attempting to save:', parsedValue);
+              await supabaseService.saveProgress(parsedValue);
+            }
           } else if (storeName === 'writing') {
-            await supabaseService.saveWritingProjects(parsedValue);
+            // For writing, extract ONLY the projects array to prevent nesting
+            // Check both direct access and nested under state (Zustand persist structure)
+            if (parsedValue && parsedValue.projects && Array.isArray(parsedValue.projects)) {
+              console.log('Saving only projects array to Supabase:', parsedValue.projects.length);
+              await supabaseService.saveWritingProjects(parsedValue.projects);
+            } else if (parsedValue && parsedValue.state && parsedValue.state.projects && Array.isArray(parsedValue.state.projects)) {
+              console.log('Saving nested projects array to Supabase:', parsedValue.state.projects.length);
+              await supabaseService.saveWritingProjects(parsedValue.state.projects);
+            } else {
+              console.error('Invalid writing store format, skipping sync:', parsedValue);
+            }
           }
         } catch (supabaseError) {
           console.error(`Supabase save error: ${supabaseError}`);
@@ -176,8 +180,10 @@ export const createSupabaseStorage = (storeName: string): StateStorage => {
         // Clear data in Supabase
         try {
           if (storeName === 'progress') {
+            // Use an empty object directly for progress
             await supabaseService.saveProgress({});
           } else if (storeName === 'writing') {
+            // Use an empty array directly for writing projects
             await supabaseService.saveWritingProjects([]);
           }
         } catch (supabaseError) {

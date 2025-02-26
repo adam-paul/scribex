@@ -1,7 +1,15 @@
-import { Link, Stack } from "expo-router";
+import { Link, Stack, Redirect } from "expo-router";
 import { StyleSheet, Text, View } from "react-native";
+import { useAuth } from '@/contexts/AuthContext';
 
 export default function NotFoundScreen() {
+  const { isAuthenticated } = useAuth();
+  
+  // Redirect to auth if not authenticated
+  if (!isAuthenticated) {
+    return <Redirect href="/auth" />;
+  }
+  
   return (
     <>
       <Stack.Screen options={{ title: "Oops!" }} />
