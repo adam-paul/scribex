@@ -33,34 +33,38 @@ export default function ProfileScreen() {
     } catch (error) {
       console.error('Error loading user rank:', error);
     }
-  }, []);
+  }, [user?.id]);
   
-  // Load only rank data since user data should be loaded at app level
+  // Load only rank data since user data is handled by AuthContext
   const loadProfileData = useCallback(async () => {
     setLoading(true);
     try {
-      // Just load rank data, user data should already be loaded
       await loadUserRank();
     } catch (error) {
       console.error('Error loading profile data:', error);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [loadUserRank]);
   
   // Handle pull-to-refresh - reload all data
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    // We'll reload everything on manual refresh
-    await loadUserData();
-    await loadUserRank();
-    setRefreshing(false);
-  }, [loadUserData]);
+    try {
+      // Explicitly refresh user data on pull-to-refresh
+      await Promise.all([
+        loadUserData(),
+        loadUserRank()
+      ]);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [loadUserData, loadUserRank]);
   
   // Just load rank when component mounts
   useEffect(() => {
     loadProfileData();
-  }, []); // Empty dependency array - load only on mount
+  }, [loadProfileData]);
   
   // If not authenticated, don't render anything
   if (!isAuthenticated || !user) {

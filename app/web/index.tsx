@@ -11,12 +11,12 @@ import { WebHeader } from '../../components/WebHeader';
 import { WritingEditor } from '../../components/WritingEditor';
 import { WebProjectList } from '../../components/WebProjectList';
 import { CreateProjectModal } from '@/components/CreateProjectModal';
-import { WritingProject, WritingGenre } from '@/types/writing';
+import { WritingProject, WritingGenre } from '@/types';
 import { FolderPlus, PenSquare } from 'lucide-react-native';
 
 export default function WebWritingPage() {
   // Authentication context
-  const { isAuthenticated, loadUserData } = useAuth();
+  const { isAuthenticated } = useAuth();
   
   // Writing store state
   const { 
@@ -51,22 +51,13 @@ export default function WebWritingPage() {
     }
   }, []);
   
-  // Load user data when the component mounts
+  // Remove redundant user data loading - now handled by AuthContext
   useEffect(() => {
-    const loadData = async () => {
-      if (isAuthenticated) {
-        setLoading(true);
-        try {
-          await loadUserData();
-        } catch (error) {
-          console.error('Error loading user data:', error);
-        } finally {
-          setLoading(false);
-        }
-      }
-    };
-    
-    loadData();
+    if (isAuthenticated) {
+      setLoading(true);
+      // Just set loading state for UI purposes
+      setTimeout(() => setLoading(false), 100);
+    }
   }, [isAuthenticated]);
   
   // Handle initial state based on the three scenarios
@@ -321,7 +312,7 @@ export default function WebWritingPage() {
             wordCount: tempContent.trim().split(/\s+/).filter(Boolean).length || 0,
             dateCreated: new Date().toISOString(),
             dateModified: new Date().toISOString(),
-            completed: false
+            isCompleted: false
           }}
           content={currentProject ? currentProject.content : tempContent}
           onContentChange={handleContentChange}

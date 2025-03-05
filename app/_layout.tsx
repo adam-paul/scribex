@@ -17,10 +17,9 @@ SplashScreen.preventAutoHideAsync();
 
 /**
  * This component handles navigation based on auth state
- * and ensures user data is loaded once at the app level
  */
 function AuthNavigationEffect() {
-  const { isAuthenticated, isLoading, user, loadUserData } = useAuth();
+  const { isAuthenticated, isLoading } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
   
@@ -29,12 +28,10 @@ function AuthNavigationEffect() {
     // Skip if still loading
     if (isLoading) return;
     
-    // Load user data once when authenticated
-    if (isAuthenticated && user) {
-      loadUserData();
-    }
-    // No navigation on logout - handled by root index.tsx
-  }, [isAuthenticated, isLoading, user, loadUserData]);
+    // No need to load user data here - that's handled by AuthContext
+    // This component only handles navigation
+    
+  }, [isLoading]); // Removed unnecessary dependencies
   
   // This component doesn't render anything
   return null;

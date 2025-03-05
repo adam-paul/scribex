@@ -3,6 +3,13 @@ import supabaseService, { SupabaseUser, UserProfile } from '@/services/supabase-
 import { useProgressStore } from '@/stores/progress-store';
 import { useWritingStore } from '@/stores/writing-store';
 
+// Extend Window interface to include our custom property
+declare global {
+  interface Window {
+    _syncTimer: number | null;
+  }
+}
+
 interface AuthContextType {
   user: SupabaseUser | null;
   isAuthenticated: boolean;
@@ -41,6 +48,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Load user data from Supabase (simplified)
   const loadUserData = useMemo(() => {
     return async (): Promise<void> => {
+      // Skip if user is null
       if (!user) return;
       
       try {
@@ -95,7 +103,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         } else if (data.session) {
           const refreshedUser = await supabaseService.refreshUser();
           setUser(refreshedUser);
-          loadUserData();
+          // Initial data load happens through the auth state listener
         } else {
           setUser(null);
         }
@@ -109,17 +117,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     
     // Set up auth state listener
     const { data: { subscription } } = supabaseService.getClient().auth.onAuthStateChange(
-      (event, session) => {
+      async (event, session) => {
         if (session) {
-          // Only refresh user on sign in
+          // Only refresh user and load data on sign in
           if (event === 'SIGNED_IN') {
-            supabaseService.refreshUser().then(refreshedUser => {
+            try {
+              const refreshedUser = await supabaseService.refreshUser();
               setUser(refreshedUser);
-              loadUserData();
-            });
+              // Load user data after user is set
+              await loadUserData();
+            } catch (error) {
+              console.error('Error handling sign in:', error);
+            }
           }
         } else if (event === 'SIGNED_OUT') {
+          // Clear user immediately on sign out
           setUser(null);
+          // Reset stores
+          resetProgress();
+          setProjects([]);
         }
       }
     );
@@ -131,7 +147,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => {
       subscription.unsubscribe();
     };
-  }, [loadUserData]);
+  }, [loadUserData, resetProgress, setProjects]);
 
   // Sign out function with cleanup before auth signout
   const signOut = async () => {
@@ -144,8 +160,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         window['_syncTimer'] = null;
       }
       
-      // Wait a moment for any in-flight operations to complete
-      await new Promise(resolve => setTimeout(resolve, 100));
+      // Reset stores before sign out to prevent any last-minute sync attempts
+      resetProgress();
+      setProjects([]);
       
       // Now perform the actual sign out
       await supabaseService.signOut();

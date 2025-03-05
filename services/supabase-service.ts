@@ -145,8 +145,8 @@ class SupabaseService {
       };
       
       // Try to fetch the user profile
-      const profile = await this.getUserProfile();
-      if (profile) {
+      const profile = await this.getUserProfile('refreshUser');
+      if (profile && this.user) { // Check if this.user still exists
         this.user.profile = profile;
       }
       
