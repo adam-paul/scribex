@@ -1,37 +1,53 @@
-export type LearningLevel = {
-  id: string;
-  title: string;
-  description: string;
-  type: 'mechanics' | 'sequencing' | 'voice';
-  difficulty: 1 | 2 | 3;
-  required: boolean;
+import { BaseEntity, NamedEntity, ContentCategory, Difficulty, WritingGenre, ProgressTrackable, ScoringInfo } from './base';
+
+/**
+ * Represents a learning level in the application
+ */
+export interface LearningLevel extends NamedEntity, ProgressTrackable {
+  type: ContentCategory;
+  difficulty: Difficulty;
+  isRequired: boolean;
   prerequisites: string[];
-  progress: number;
-  completed: boolean;
-  unlocked: boolean;
+  isUnlocked: boolean;
   order?: number;
   categoryProgress?: number;
-};
+}
 
-export type Challenge = {
-  id: string;
-  title: string;
-  description: string;
-  type: 'story' | 'essay' | 'poetry' | 'journalism';
+/**
+ * Represents a completed level with score and timing information
+ */
+export interface LevelCompletion extends ScoringInfo {
+  levelId: string;
+  isCompleted: boolean; 
+  attempts: number;
+  timeSpent: number;
+  completedAt?: number;
+}
+
+/**
+ * Represents a writing challenge for users
+ */
+export interface Challenge extends NamedEntity {
+  type: WritingGenre;
   wordCount: number;
   timeLimit?: number;
   reward: number;
-};
+}
 
-export type Achievement = {
-  id: string;
+/**
+ * Achievement that can be unlocked by users
+ */
+export interface Achievement extends BaseEntity {
   title: string;
   description: string;
   icon: string;
   unlockedAt: string;
-};
+}
 
-export type UserProgress = {
+/**
+ * Tracks overall user progress across the application
+ */
+export interface UserProgress {
   currentLevel: string;
   mechanicsProgress: number;
   sequencingProgress: number;
@@ -42,4 +58,4 @@ export type UserProgress = {
   dailyStreak: number;
   achievements: Achievement[];
   lastUpdated: number;
-};
+}
