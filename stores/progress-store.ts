@@ -109,10 +109,16 @@ const calculateXP = (progress: UserProgress): number => {
   return Math.floor(xp);
 };
 
+// Type for progress category names
+type ProgressCategory = 'mechanics' | 'sequencing' | 'voice';
+
 interface ProgressState {
   progress: UserProgress;
   offlineChanges: boolean;
   lastSyncTime: number | null;
+  
+  // Internal helper (prefixed with underscore to indicate it's not meant for external use)
+  _updateProgressAndSync: (updateFn: (state: ProgressState) => Partial<ProgressState> | null) => Promise<void>;
   
   // Progress Management
   setProgress: (progress: Partial<UserProgress>) => void;
@@ -121,7 +127,7 @@ interface ProgressState {
   incrementStreak: () => Promise<void>;
   addPoints: (points: number) => Promise<void>;
   getNextLevel: (currentLevelId: string) => string | null;
-  updateCategoryProgress: (category: 'mechanics' | 'sequencing' | 'voice', value: number) => Promise<void>;
+  updateCategoryProgress: (category: ProgressCategory, value: number) => Promise<void>;
   
   // Achievement System
   unlockAchievement: (achievementId: string) => Promise<Achievement | null>;
@@ -132,7 +138,7 @@ interface ProgressState {
   updateUserProfileFromProgress: () => Promise<void>;
   
   // Content Structure & Navigation
-  isCategoryUnlocked: (category: 'mechanics' | 'sequencing' | 'voice') => boolean;
+  isCategoryUnlocked: (category: ProgressCategory) => boolean;
   checkAndUnlockNextContent: () => Promise<void>;
   
   // Development Tools
@@ -195,91 +201,91 @@ export const useProgressStore = create<ProgressState>()(
           sequencingProgress
         });
         
-        // First ensure mechanics unlocks are handled correctly
-        // Check if mechanics-1 is completed
-        if ((completedLevels.includes('mechanics-1') || 
-            (mechanicsProgress >= 100 && currentLevel === 'mechanics-1'))) {
+        // Helper to handle level completion logic
+        const handleLevelProgress = async (levelId: string, progress: number, nextLevelId: string) => {
+          // If level is completed by progress threshold but not marked
+          const isCompleted = completedLevels.includes(levelId);
+          const isCompletedByProgress = progress >= 100 && currentLevel === levelId;
           
-          console.log('Mechanics-1 is completed, checking if mechanics-2 needs unlocking');
-          
-          // If mechanics-1 was just completed but not marked as completed, do so
-          if (!completedLevels.includes('mechanics-1')) {
-            console.log('Marking mechanics-1 as completed');
-            await get().completeLevel('mechanics-1');
+          if (!isCompleted && isCompletedByProgress) {
+            console.log(`Marking ${levelId} as completed based on progress`);
+            await get().completeLevel(levelId);
           }
           
-          // Unlock mechanics-2 if it's not already unlocked
-          if (!unlockedLevels.includes('mechanics-2')) {
-            console.log('Unlocking mechanics-2');
-            await get().unlockLevel('mechanics-2');
-          }
-          
-          // If current level is still mechanics-1, update it
-          if (currentLevel === 'mechanics-1') {
-            console.log('Updating current level to mechanics-2');
-            set((state) => ({
-              progress: {
-                ...state.progress,
-                currentLevel: 'mechanics-2',
-                mechanicsProgress: 0, // Reset mechanics progress for the new level
-                lastUpdated: Date.now()
-              }
-            }));
-          }
-        }
-        
-        // Check if mechanics-2 is completed
-        if ((completedLevels.includes('mechanics-2') || 
-            (mechanicsProgress >= 100 && currentLevel === 'mechanics-2'))) {
-          
-          console.log('Mechanics-2 is completed, checking for sequencing unlock');
-          
-          // If mechanics-2 was just completed but not marked as completed, do so
-          if (!completedLevels.includes('mechanics-2')) {
-            console.log('Marking mechanics-2 as completed');
-            await get().completeLevel('mechanics-2');
-          }
-          
-          // Check if both mechanics levels are completed to correctly calculate mechanics progress
-          const mechanicsLevelsCompleted = 
-            completedLevels.includes('mechanics-1') && 
-            completedLevels.includes('mechanics-2');
-          
-          // Unlock sequencing if mechanics threshold is reached
-          // Either through explicit progress or by completing both mechanics levels
-          if (mechanicsProgress >= CATEGORY_UNLOCK_THRESHOLDS.sequencing || mechanicsLevelsCompleted) {
-            const sequencingLevel = LEVELS.find(l => l.id === 'sequencing-1');
+          // Unlock next level if needed
+          if ((isCompleted || isCompletedByProgress) && !unlockedLevels.includes(nextLevelId)) {
+            console.log(`Unlocking next level: ${nextLevelId}`);
+            await get().unlockLevel(nextLevelId);
             
-            if (sequencingLevel && !unlockedLevels.includes('sequencing-1')) {
-              console.log('Unlocking sequencing-1');
-              await get().unlockLevel('sequencing-1');
-            }
-            
-            // If current level is still mechanics-2, update it
-            if (currentLevel === 'mechanics-2') {
-              console.log('Updating current level to sequencing-1');
+            // Update current level if needed
+            if (currentLevel === levelId) {
+              console.log(`Advancing current level to ${nextLevelId}`);
+              // Update current level and reset relevant progress counter
               set((state) => ({
                 progress: {
                   ...state.progress,
-                  currentLevel: 'sequencing-1',
+                  currentLevel: nextLevelId,
+                  // Reset category progress when moving to a new level within same category
+                  ...(nextLevelId.includes(levelId.split('-')[0]) ? 
+                      { [levelId.split('-')[0] + 'Progress']: 0 } : {}),
                   lastUpdated: Date.now()
                 }
               }));
             }
           }
+        };
+        
+        // Handle category unlocking based on thresholds
+        const unlockCategoryIfNeeded = async (
+          prerequisiteProgress: number,
+          prerequisiteThreshold: number,
+          categoryToUnlock: string,
+          levelToUnlock: string
+        ) => {
+          if (prerequisiteProgress >= prerequisiteThreshold) {
+            // Find the level in global levels array
+            const levelObj = LEVELS.find(l => l.id === levelToUnlock);
+            
+            // Unlock if it exists and isn't already unlocked
+            if (levelObj && !unlockedLevels.includes(levelToUnlock)) {
+              console.log(`Unlocking ${categoryToUnlock} category: ${levelToUnlock}`);
+              await get().unlockLevel(levelToUnlock);
+            }
+          }
+        };
+        
+        // Process level progression
+        if (currentLevel === 'mechanics-1') {
+          await handleLevelProgress('mechanics-1', mechanicsProgress, 'mechanics-2');
+        } else if (currentLevel === 'mechanics-2') {
+          await handleLevelProgress('mechanics-2', mechanicsProgress, 'sequencing-1');
         }
         
-        // Check for unlocking voice category
-        // Either through explicit progress or by completing sequencing-1
-        if (sequencingProgress >= CATEGORY_UNLOCK_THRESHOLDS.voice || 
-            completedLevels.includes('sequencing-1')) {
+        // Process category unlocks based on thresholds
+        
+        // Sequencing category unlock
+        const mechanicsLevelsCompleted = 
+          completedLevels.includes('mechanics-1') && 
+          completedLevels.includes('mechanics-2');
           
-          const voiceLevel = LEVELS.find(l => l.id === 'voice-1');
-          
-          if (voiceLevel && !unlockedLevels.includes('voice-1')) {
-            console.log('Unlocking voice-1');
-            await get().unlockLevel('voice-1');
-          }
+        if (mechanicsLevelsCompleted || mechanicsProgress >= CATEGORY_UNLOCK_THRESHOLDS.sequencing) {
+          await unlockCategoryIfNeeded(
+            mechanicsProgress, 
+            CATEGORY_UNLOCK_THRESHOLDS.sequencing,
+            'sequencing',
+            'sequencing-1'
+          );
+        }
+        
+        // Voice category unlock  
+        const sequencingLevelCompleted = completedLevels.includes('sequencing-1');
+        if (sequencingLevelCompleted || sequencingProgress >= CATEGORY_UNLOCK_THRESHOLDS.voice) {
+          await unlockCategoryIfNeeded(
+            sequencingProgress,
+            CATEGORY_UNLOCK_THRESHOLDS.voice,
+            'voice',
+            'voice-1'
+          );
         }
       },
       
@@ -301,43 +307,52 @@ export const useProgressStore = create<ProgressState>()(
           offlineChanges: true,
         })),
         
-      completeLevel: async (levelId) => {
-        // Check network status
+      // Helper function to update state and queue sync
+      _updateProgressAndSync: async (updateFn) => {
+        // Check network status once
         const netInfo = await NetInfo.fetch();
         
+        // Apply the update function to state
         set((state) => {
-          // Don't add the level if it's already marked as completed
-          if (state.progress.completedLevels.includes(levelId)) {
-            return { progress: state.progress };
-          }
-          
-          // Update state with completion
-          const updatedProgress = {
-            ...state.progress,
-            completedLevels: [...state.progress.completedLevels, levelId],
-            lastUpdated: Date.now()
-          };
+          const result = updateFn(state);
+          // If no changes, return original state
+          if (!result) return state;
           
           return {
-            progress: updatedProgress,
+            ...result,
             offlineChanges: !netInfo.isConnected,
           };
         });
         
-        // Try to sync with server if online
+        // Sync once after state update if online
         if (netInfo.isConnected) {
           await get().syncWithServer();
         }
       },
+
+      completeLevel: async (levelId) => {
+        await get()._updateProgressAndSync((state) => {
+          // Don't add the level if it's already marked as completed
+          if (state.progress.completedLevels.includes(levelId)) {
+            return null;
+          }
+          
+          // Update state with completion
+          return {
+            progress: {
+              ...state.progress,
+              completedLevels: [...state.progress.completedLevels, levelId],
+              lastUpdated: Date.now()
+            }
+          };
+        });
+      },
         
       unlockLevel: async (levelId) => {
-        // Check network status
-        const netInfo = await NetInfo.fetch();
-        
-        set((state) => {
+        await get()._updateProgressAndSync((state) => {
           // Don't add the level if it's already unlocked
           if (state.progress.unlockedLevels.includes(levelId)) {
-            return { progress: state.progress };
+            return null;
           }
           
           return {
@@ -345,53 +360,29 @@ export const useProgressStore = create<ProgressState>()(
               ...state.progress,
               unlockedLevels: [...state.progress.unlockedLevels, levelId],
               lastUpdated: Date.now()
-            },
-            offlineChanges: !netInfo.isConnected,
+            }
           };
         });
-        
-        // Try to sync with server if online
-        if (netInfo.isConnected) {
-          await get().syncWithServer();
-        }
       },
         
       incrementStreak: async () => {
-        // Check network status
-        const netInfo = await NetInfo.fetch();
-        
-        set((state) => ({
+        await get()._updateProgressAndSync((state) => ({
           progress: {
             ...state.progress,
             dailyStreak: state.progress.dailyStreak + 1,
             lastUpdated: Date.now()
-          },
-          offlineChanges: !netInfo.isConnected,
+          }
         }));
-        
-        // Try to sync with server if online
-        if (netInfo.isConnected) {
-          await get().syncWithServer();
-        }
       },
         
       addPoints: async (points) => {
-        // Check network status
-        const netInfo = await NetInfo.fetch();
-        
-        set((state) => ({
+        await get()._updateProgressAndSync((state) => ({
           progress: {
             ...state.progress,
             totalScore: state.progress.totalScore + points,
             lastUpdated: Date.now()
-          },
-          offlineChanges: !netInfo.isConnected,
+          }
         }));
-        
-        // Try to sync with server if online
-        if (netInfo.isConnected) {
-          await get().syncWithServer();
-        }
       },
         
       getNextLevel: (currentLevelId) => {
@@ -411,40 +402,56 @@ export const useProgressStore = create<ProgressState>()(
       },
       
       updateCategoryProgress: async (category, value) => {
-        // Check network status
-        const netInfo = await NetInfo.fetch();
-        
-        set((state) => {
+        await get()._updateProgressAndSync((state) => {
+          // Get current progress for the category
+          let currentProgress;
+          switch (category) {
+            case 'mechanics': 
+              currentProgress = state.progress.mechanicsProgress;
+              break;
+            case 'sequencing': 
+              currentProgress = state.progress.sequencingProgress;
+              break;
+            case 'voice': 
+              currentProgress = state.progress.voiceProgress;
+              break;
+            default:
+              return null;
+          }
+          
+          // Only update if the new value is higher
+          if (value <= currentProgress) {
+            return null;
+          }
+          
+          // Update the specific category progress
           switch (category) {
             case 'mechanics':
               return {
                 progress: {
                   ...state.progress,
-                  mechanicsProgress: Math.max(state.progress.mechanicsProgress, value),
+                  mechanicsProgress: value,
                   lastUpdated: Date.now()
-                },
-                offlineChanges: !netInfo.isConnected,
+                }
               };
             case 'sequencing':
               return {
                 progress: {
                   ...state.progress,
-                  sequencingProgress: Math.max(state.progress.sequencingProgress, value),
+                  sequencingProgress: value,
                   lastUpdated: Date.now()
-                },
-                offlineChanges: !netInfo.isConnected,
+                }
               };
             case 'voice':
               return {
                 progress: {
                   ...state.progress,
-                  voiceProgress: Math.max(state.progress.voiceProgress, value),
+                  voiceProgress: value,
                   lastUpdated: Date.now()
-                },
-                offlineChanges: !netInfo.isConnected,
+                }
               };
             default:
-              return { progress: state.progress };
+              return null;
           }
         });
         
@@ -457,11 +464,6 @@ export const useProgressStore = create<ProgressState>()(
         
         // Check if any new categories or levels should be unlocked
         await get().checkAndUnlockNextContent();
-        
-        // Try to sync with server if online
-        if (netInfo.isConnected) {
-          await get().syncWithServer();
-        }
       },
       
       unlockAchievement: async (achievementId) => {
@@ -484,23 +486,14 @@ export const useProgressStore = create<ProgressState>()(
           unlockedAt: new Date().toISOString()
         };
         
-        // Check network status
-        const netInfo = await NetInfo.fetch();
-        
-        // Update state
-        set((state) => ({
+        // Update state using our helper
+        await get()._updateProgressAndSync((state) => ({
           progress: {
             ...state.progress,
             achievements: [...state.progress.achievements, unlockedAchievement],
             lastUpdated: Date.now()
-          },
-          offlineChanges: !netInfo.isConnected,
+          }
         }));
-        
-        // Try to sync with server if online
-        if (netInfo.isConnected) {
-          await get().syncWithServer();
-        }
         
         return unlockedAchievement;
       },

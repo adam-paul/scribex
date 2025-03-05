@@ -4,32 +4,35 @@ import { WritingProject, WritingGenre } from '@/types/writing';
 import { createWritingStorage } from '@/services/supabase-storage';
 import supabaseService from '@/services/supabase-service';
 
-interface WritingState {
-  // Project State
+// Data interface - the core state shape
+interface WritingData {
   projects: WritingProject[];
   currentProject: WritingProject | null;
-  activeProjectId: string | null; // Track the last active project
-  
-  // Focus Mode State
+  activeProjectId: string | null;
   focusMode: boolean;
-  
-  // Genre State
   selectedGenre: WritingGenre | null;
-  
-  // Project Management
+}
+
+// Action interfaces - organized by feature
+interface ProjectActions {
   createProject: (title: string, genre: WritingGenre) => WritingProject;
   updateProject: (project: Partial<WritingProject> & { id: string }) => void;
   deleteProject: (id: string) => void;
-  
-  // Editor Management
+}
+
+interface EditorActions {
   setCurrentProject: (id: string) => WritingProject | null;
   clearCurrentProject: () => void;
   updateContent: (content: string) => void;
   toggleFocusMode: () => void;
-  
-  // Genre Management
+}
+
+interface GenreActions {
   setSelectedGenre: (genre: WritingGenre | null) => void;
 }
+
+// Combined state interface
+interface WritingState extends WritingData, ProjectActions, EditorActions, GenreActions {}
 
 // Initial empty writing project template
 const createEmptyProject = (id: string, title: string, genre: WritingGenre): WritingProject => ({
@@ -43,114 +46,126 @@ const createEmptyProject = (id: string, title: string, genre: WritingGenre): Wri
   completed: false,
 });
 
+// Helper function for project updates with timestamps
+const withTimestamp = <T extends object>(obj: T): T & { dateModified: string } => ({
+  ...obj,
+  dateModified: new Date().toISOString(),
+});
+
+// Create store with better organization
 export const useWritingStore = create<WritingState>()(
   persist(
-    (set, get) => ({
-      // Initial state
-      projects: [] as WritingProject[], // Explicitly type as array to ensure it's never undefined
-      currentProject: null,
-      activeProjectId: null, // Initialize as null
-      focusMode: false,
-      selectedGenre: null,
-      
-      // Project management functions
-      createProject: (title, genre) => {
-        const id = `project_${Date.now()}`;
-        const newProject = createEmptyProject(id, title, genre);
+    (set, get) => {
+      // Create project actions object
+      const projectActions: ProjectActions = {
+        createProject: (title, genre) => {
+          const id = `project_${Date.now()}`;
+          const newProject = createEmptyProject(id, title, genre);
+          
+          set((state) => ({
+            projects: [...state.projects, newProject],
+            currentProject: newProject,
+            activeProjectId: id, // Set as active project
+          }));
+          
+          return newProject;
+        },
         
-        set((state) => ({
-          projects: [...state.projects, newProject],
-          currentProject: newProject,
-          activeProjectId: id, // Set as active project
-        }));
+        updateProject: (projectUpdate) => {
+          const { id, ...updates } = projectUpdate;
+          
+          set((state) => ({
+            projects: state.projects.map((project) => 
+              project.id === id 
+                ? withTimestamp({ ...project, ...updates }) 
+                : project
+            ),
+            // Also update current project if it's the one being updated
+            currentProject: state.currentProject?.id === id
+              ? withTimestamp({ ...state.currentProject, ...updates })
+              : state.currentProject,
+          }));
+        },
         
-        return newProject;
-      },
+        deleteProject: (id) => {
+          set((state) => ({
+            projects: state.projects.filter((project) => project.id !== id),
+            // Clear current project if it's the one being deleted
+            currentProject: state.currentProject?.id === id ? null : state.currentProject,
+          }));
+        },
+      };
       
-      updateProject: (projectUpdate) => {
-        const { id, ...updates } = projectUpdate;
+      // Create editor actions object
+      const editorActions: EditorActions = {
+        setCurrentProject: (id) => {
+          const project = get().projects.find((p) => p.id === id) || null;
+          set({ 
+            currentProject: project,
+            activeProjectId: project ? id : null, // Update active project ID
+          });
+          return project;
+        },
         
-        set((state) => ({
-          projects: state.projects.map((project) => 
-            project.id === id 
-              ? { 
-                  ...project, 
-                  ...updates,
-                  dateModified: new Date().toISOString(),
-                } 
-              : project
-          ),
-          // Also update current project if it's the one being updated
-          currentProject: state.currentProject?.id === id
-            ? { ...state.currentProject, ...updates, dateModified: new Date().toISOString() }
-            : state.currentProject,
-        }));
-      },
-      
-      deleteProject: (id) => {
-        set((state) => ({
-          projects: state.projects.filter((project) => project.id !== id),
-          // Clear current project if it's the one being deleted
-          currentProject: state.currentProject?.id === id ? null : state.currentProject,
-        }));
-      },
-      
-      // Editor management
-      setCurrentProject: (id) => {
-        const project = get().projects.find((p) => p.id === id) || null;
-        set({ 
-          currentProject: project,
-          activeProjectId: project ? id : null, // Update active project ID
-        });
-        return project;
-      },
-      
-      clearCurrentProject: () => {
-        // We don't clear activeProjectId here, as we want to remember the last project
-        set({ currentProject: null });
-      },
-      
-      updateContent: (content) => {
-        if (!get().currentProject) return;
+        clearCurrentProject: () => {
+          // We don't clear activeProjectId here, as we want to remember the last project
+          set({ currentProject: null });
+        },
         
-        const wordCount = content.trim().split(/\s+/).filter(Boolean).length;
-        
-        set((state) => ({
-          currentProject: state.currentProject 
-            ? {
-                ...state.currentProject,
-                content,
-                wordCount,
-                dateModified: new Date().toISOString(),
-              }
-            : null,
-        }));
-        
-        // Also update the project in the projects array
-        const { currentProject } = get();
-        if (currentProject) {
-          // Call updateProject using a try-catch to handle any potential errors
-          try {
-            get().updateProject({
+        updateContent: (content) => {
+          if (!get().currentProject) return;
+          
+          const wordCount = content.trim().split(/\s+/).filter(Boolean).length;
+          
+          set((state) => ({
+            currentProject: state.currentProject 
+              ? withTimestamp({
+                  ...state.currentProject,
+                  content,
+                  wordCount,
+                })
+              : null,
+          }));
+          
+          // Also update the project in the projects array
+          const { currentProject } = get();
+          if (currentProject) {
+            // Call updateProject directly without a redundant try/catch (handled by callers)
+            projectActions.updateProject({
               id: currentProject.id,
               content,
               wordCount,
             });
-          } catch (error) {
-            console.error('Error updating content:', error);
           }
-        }
-      },
+        },
+        
+        toggleFocusMode: () => {
+          set((state) => ({ focusMode: !state.focusMode }));
+        },
+      };
       
-      toggleFocusMode: () => {
-        set((state) => ({ focusMode: !state.focusMode }));
-      },
-      
-      // Genre management
-      setSelectedGenre: (genre) => {
-        set({ selectedGenre: genre });
-      },
-    }),
+      // Create genre actions object
+      const genreActions: GenreActions = {
+        setSelectedGenre: (genre) => {
+          set({ selectedGenre: genre });
+        },
+      };
+    
+      // Return combined state and actions
+      return {
+        // Initial data state
+        projects: [] as WritingProject[],
+        currentProject: null,
+        activeProjectId: null,
+        focusMode: false,
+        selectedGenre: null,
+        
+        // Include all action groups
+        ...projectActions,
+        ...editorActions,
+        ...genreActions,
+      };
+    },
     {
       name: 'writing-storage',
       storage: createWritingStorage(),
