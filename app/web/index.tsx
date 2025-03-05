@@ -8,7 +8,7 @@ import { Button } from '@/components/Button';
 import { useWritingStore } from '@/stores/writing-store';
 import supabaseService from '@/services/supabase-service';
 import { WebHeader } from '../../components/WebHeader';
-import { WebWritingEditor } from '../../components/WebWritingEditor';
+import { WritingEditor } from '../../components/WritingEditor';
 import { WebProjectList } from '../../components/WebProjectList';
 import { CreateProjectModal } from '@/components/CreateProjectModal';
 import { WritingProject, WritingGenre } from '@/types/writing';
@@ -312,7 +312,7 @@ export default function WebWritingPage() {
           </Text>
         </View>
         
-        <WebWritingEditor
+        <WritingEditor
           project={currentProject || { 
             id: 'temp',
             title: 'Just Write',
@@ -326,6 +326,7 @@ export default function WebWritingPage() {
           content={currentProject ? currentProject.content : tempContent}
           onContentChange={handleContentChange}
           onSave={handleSave}
+          focusMode={false}
         />
       </View>
     </SafeAreaView>
