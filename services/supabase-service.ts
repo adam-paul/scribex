@@ -9,6 +9,50 @@ import { WritingProject } from '@/types/writing';
 const SUPABASE_URL = Constants.expoConfig?.extra?.supabaseUrl;
 const SUPABASE_ANON_KEY = Constants.expoConfig?.extra?.supabaseAnonKey;
 
+// Create a custom storage implementation for web
+const createWebStorage = () => {
+  return {
+    getItem: (key: string): Promise<string | null> => {
+      try {
+        // Check if window is defined (client-side) before accessing localStorage
+        if (typeof window !== 'undefined') {
+          const value = window.localStorage.getItem(key);
+          return Promise.resolve(value);
+        }
+        // Return null if we're in a server environment
+        return Promise.resolve(null);
+      } catch (e) {
+        console.error('localStorage getItem error:', e);
+        return Promise.resolve(null);
+      }
+    },
+    setItem: (key: string, value: string): Promise<void> => {
+      try {
+        // Check if window is defined (client-side) before accessing localStorage
+        if (typeof window !== 'undefined') {
+          window.localStorage.setItem(key, value);
+        }
+        return Promise.resolve();
+      } catch (e) {
+        console.error('localStorage setItem error:', e);
+        return Promise.resolve();
+      }
+    },
+    removeItem: (key: string): Promise<void> => {
+      try {
+        // Check if window is defined (client-side) before accessing localStorage
+        if (typeof window !== 'undefined') {
+          window.localStorage.removeItem(key);
+        }
+        return Promise.resolve();
+      } catch (e) {
+        console.error('localStorage removeItem error:', e);
+        return Promise.resolve();
+      }
+    },
+  };
+};
+
 // User profile type
 export type UserProfile = {
   id: string;
@@ -48,7 +92,7 @@ class SupabaseService {
         persistSession: true,
         // Storage is different depending on platform
         storage: Platform.OS === 'web' 
-          ? localStorage 
+          ? createWebStorage()
           : {
               getItem: async (key: string) => {
                 try {

@@ -1,8 +1,8 @@
-import { StyleSheet, View, Text, Alert, ActivityIndicator } from 'react-native';
+import { StyleSheet, View, Text, Alert, ActivityIndicator, Linking, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useState, useEffect } from 'react';
 import { router } from 'expo-router';
-import { PenSquare, FolderPlus, Sparkles, ArrowLeftCircle, Edit } from 'lucide-react-native';
+import { PenSquare, FolderPlus, Sparkles, ArrowLeftCircle, Edit, ExternalLink } from 'lucide-react-native';
 import { colors } from '@/constants/colors';
 import { Button } from '@/components/Button';
 import { ProjectList } from '@/components/ProjectList';
@@ -12,6 +12,9 @@ import { useWritingStore } from '@/stores/writing-store';
 import { WritingProject, WritingGenre } from '@/types/writing';
 import { useAuth } from '@/contexts/AuthContext';
 import supabaseService from '@/services/supabase-service';
+
+// Web app URL - replace with your actual Vercel deployment URL
+const WEB_APP_URL = 'https://scribex.vercel.app/web';
 
 export default function WriteScreen() {
   // Authentication context
@@ -224,6 +227,27 @@ export default function WriteScreen() {
     }
   };
   
+  // Handle opening the web app
+  const handleOpenWebApp = async () => {
+    try {
+      // Save current projects to ensure they're available on web
+      const currentProjects = useWritingStore.getState().projects;
+      const projectsArray = Array.isArray(currentProjects) ? currentProjects : [];
+      await supabaseService.saveWritingProjects(projectsArray);
+      
+      // Open the web app URL
+      const canOpen = await Linking.canOpenURL(WEB_APP_URL);
+      if (canOpen) {
+        await Linking.openURL(WEB_APP_URL);
+      } else {
+        Alert.alert('Error', 'Cannot open the web app. Please try again later.');
+      }
+    } catch (error) {
+      console.error('Error opening web app:', error);
+      Alert.alert('Error', 'There was a problem opening the web app. Please try again.');
+    }
+  };
+  
   // Render project list screen
   if (showProjects) {
     return (
@@ -249,6 +273,21 @@ export default function WriteScreen() {
             size="medium"
             style={styles.actionButton}
           />
+        </View>
+        
+        {/* Web App Link */}
+        <View style={styles.webAppLinkContainer}>
+          <Button
+            title="Open in Web Browser"
+            icon={<ExternalLink size={16} color={colors.primary} />}
+            onPress={handleOpenWebApp}
+            variant="outline"
+            size="small"
+            style={styles.webAppLink}
+          />
+          <Text style={styles.webAppText}>
+            For a better writing experience on larger screens
+          </Text>
         </View>
         
         {loading && (
@@ -349,6 +388,19 @@ const styles = StyleSheet.create({
   },
   actionButton: {
     flex: 1,
+  },
+  webAppLinkContainer: {
+    paddingHorizontal: 16,
+    paddingBottom: 16,
+    alignItems: 'center',
+  },
+  webAppLink: {
+    marginBottom: 4,
+  },
+  webAppText: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    textAlign: 'center',
   },
   loadingContainer: {
     paddingHorizontal: 16,

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, TextInput, StyleSheet, TouchableOpacity, ActivityIndicator, KeyboardAvoidingView, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
 import supabaseService from '@/services/supabase-service';
@@ -15,6 +15,12 @@ export default function AuthForm() {
   const router = useRouter();
 
   const [verificationSent, setVerificationSent] = useState(false);
+  const [authTimeout, setAuthTimeout] = useState(false);
+
+  // Reset timeout state when component mounts or mode changes
+  useEffect(() => {
+    setAuthTimeout(false);
+  }, [mode]);
 
   const handleAuth = async () => {
     if (!email || !password) {
@@ -24,14 +30,40 @@ export default function AuthForm() {
 
     setLoading(true);
     setError(null);
+    setAuthTimeout(false);
+
+    // Set up timeout for web platform
+    let timeoutId: NodeJS.Timeout | null = null;
+    
+    if (Platform.OS === 'web') {
+      timeoutId = setTimeout(() => {
+        console.log('Authentication request timed out');
+        setAuthTimeout(true);
+        setLoading(false);
+        setError('Authentication request timed out. Please try again.');
+      }, 10000); // 10 second timeout
+    }
 
     try {
       if (mode === 'login') {
         const user = await supabaseService.signIn(email, password);
         
+        // Clear timeout if it was set
+        if (timeoutId) clearTimeout(timeoutId);
+        
         if (user) {
           // Login successful! Redirect to home screen
           console.log("Login successful, redirecting to home");
+          
+          // For web platform, add a small delay to allow auth state to propagate
+          if (Platform.OS === 'web') {
+            // Force a page reload for web to ensure clean auth state
+            if (typeof window !== 'undefined') {
+              window.location.href = '/';
+              return; // Return early to prevent router.replace
+            }
+          }
+          
           router.replace('/');
         } else {
           // Check if user exists but is not verified
@@ -46,21 +78,40 @@ export default function AuthForm() {
         // Signup flow
         const { user, needsEmailVerification } = await supabaseService.signUp(email, password);
         
+        // Clear timeout if it was set
+        if (timeoutId) clearTimeout(timeoutId);
+        
         if (user && needsEmailVerification) {
           // Email verification needed
           setVerificationSent(true);
         } else if (user) {
           // No email verification needed, redirect to home
+          
+          // For web platform, add a small delay to allow auth state to propagate
+          if (Platform.OS === 'web') {
+            // Force a page reload for web to ensure clean auth state
+            if (typeof window !== 'undefined') {
+              window.location.href = '/';
+              return; // Return early to prevent router.replace
+            }
+          }
+          
           router.replace('/');
         } else {
           setError('Failed to create account. Please try again.');
         }
       }
     } catch (err) {
+      // Clear timeout if it was set
+      if (timeoutId) clearTimeout(timeoutId);
+      
       console.error('Auth error:', err);
       setError('An unexpected error occurred');
     } finally {
-      setLoading(false);
+      // Only set loading to false if we haven't timed out
+      if (!authTimeout) {
+        setLoading(false);
+      }
     }
   };
 
@@ -109,6 +160,23 @@ export default function AuthForm() {
               <Text style={styles.errorText}>{error}</Text>
             )}
             
+            {authTimeout && (
+              <View style={styles.timeoutContainer}>
+                <Text style={styles.timeoutText}>
+                  The authentication process is taking longer than expected.
+                </Text>
+                <TouchableOpacity 
+                  style={styles.retryButton}
+                  onPress={() => {
+                    setAuthTimeout(false);
+                    setError(null);
+                  }}
+                >
+                  <Text style={styles.retryButtonText}>Retry</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+            
             <TextInput
               style={styles.input}
               placeholder="Email"
@@ -147,6 +215,22 @@ export default function AuthForm() {
                   : "Already have an account? Sign In"}
               </Text>
             </TouchableOpacity>
+            
+            {Platform.OS === 'web' && (
+              <TouchableOpacity 
+                style={styles.directNavContainer}
+                onPress={() => {
+                  if (typeof window !== 'undefined') {
+                    // Force navigation to web app
+                    window.location.href = '/web';
+                  }
+                }}
+              >
+                <Text style={styles.directNavText}>
+                  Having trouble? Try accessing the web app directly
+                </Text>
+              </TouchableOpacity>
+            )}
           </>
         )}
       </View>
@@ -225,6 +309,33 @@ const styles = StyleSheet.create({
   },
   skipText: {
     color: colors.textSecondary,
+    fontSize: 14,
+  },
+  timeoutContainer: {
+    marginBottom: 16,
+    alignItems: 'center',
+  },
+  timeoutText: {
+    color: colors.textSecondary,
+    marginBottom: 8,
+  },
+  retryButton: {
+    backgroundColor: colors.primary,
+    borderRadius: 8,
+    padding: 16,
+    alignItems: 'center',
+  },
+  retryButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  directNavContainer: {
+    marginTop: 16,
+    alignItems: 'center',
+  },
+  directNavText: {
+    color: colors.primary,
     fontSize: 14,
   },
 });

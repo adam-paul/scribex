@@ -129,7 +129,7 @@ export default function ExerciseScreen() {
         <Text>Exercise not found</Text>
         <Button 
           title="Go Back" 
-          onPress={() => router.back()} 
+          onPress={() => router.replace('/(tabs)')} 
           style={{ marginTop: 16 }} 
         />
       </SafeAreaView>
@@ -275,14 +275,14 @@ export default function ExerciseScreen() {
         `Streak bonus: ${streakBonus}\n` +
         `Total points: ${totalPoints}\n\n` +
         `You've unlocked the next level!`,
-        [{ text: 'Continue', onPress: () => router.back() }]
+        [{ text: 'Continue', onPress: () => router.replace('/(tabs)') }]
       );
     } else {
       // Show failure message emphasizing the 90% requirement
       Alert.alert(
         'Try Again',
         `You scored ${Math.round(results.scorePercentage)}%, but need ${exerciseSet.requiredScore}% to advance. The ScribeX system requires 90% accuracy to ensure mastery before moving on.\n\nLet's try again!`,
-        [{ text: 'Go Back', onPress: () => router.back() }]
+        [{ text: 'Go Back', onPress: () => router.replace('/(tabs)') }]
       );
     }
   };
@@ -300,7 +300,7 @@ export default function ExerciseScreen() {
             <Button
               key="header-back-button"
               title="Exit"
-              onPress={() => router.back()}
+              onPress={() => router.replace('/(tabs)')}
               variant="secondary"
               size="small"
             />

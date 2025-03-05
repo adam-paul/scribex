@@ -58,15 +58,11 @@ export const useWritingStore = create<WritingState>()(
         const id = `project_${Date.now()}`;
         const newProject = createEmptyProject(id, title, genre);
         
-        set((state) => {
-          // Ensure state.projects is always an array before spreading
-          const currentProjects = Array.isArray(state.projects) ? state.projects : [];
-          return {
-            projects: [...currentProjects, newProject],
-            currentProject: newProject,
-            activeProjectId: id, // Set as active project
-          };
-        });
+        set((state) => ({
+          projects: [...state.projects, newProject],
+          currentProject: newProject,
+          activeProjectId: id, // Set as active project
+        }));
         
         return newProject;
       },
@@ -74,48 +70,34 @@ export const useWritingStore = create<WritingState>()(
       updateProject: (projectUpdate) => {
         const { id, ...updates } = projectUpdate;
         
-        set((state) => {
-          // Ensure state.projects is always an array before operating on it
-          const currentProjects = Array.isArray(state.projects) ? state.projects : [];
-          
-          return {
-            projects: currentProjects.map((project) => 
-              project.id === id 
-                ? { 
-                    ...project, 
-                    ...updates,
-                    dateModified: new Date().toISOString(),
-                  } 
-                : project
-            ),
-            // Also update current project if it's the one being updated
-            currentProject: state.currentProject?.id === id
-              ? { ...state.currentProject, ...updates, dateModified: new Date().toISOString() }
-              : state.currentProject,
-          };
-        });
+        set((state) => ({
+          projects: state.projects.map((project) => 
+            project.id === id 
+              ? { 
+                  ...project, 
+                  ...updates,
+                  dateModified: new Date().toISOString(),
+                } 
+              : project
+          ),
+          // Also update current project if it's the one being updated
+          currentProject: state.currentProject?.id === id
+            ? { ...state.currentProject, ...updates, dateModified: new Date().toISOString() }
+            : state.currentProject,
+        }));
       },
       
       deleteProject: (id) => {
-        set((state) => {
-          // Ensure state.projects is always an array before operating on it
-          const currentProjects = Array.isArray(state.projects) ? state.projects : [];
-          
-          return {
-            projects: currentProjects.filter((project) => project.id !== id),
-            // Clear current project if it's the one being deleted
-            currentProject: state.currentProject?.id === id ? null : state.currentProject,
-          };
-        });
+        set((state) => ({
+          projects: state.projects.filter((project) => project.id !== id),
+          // Clear current project if it's the one being deleted
+          currentProject: state.currentProject?.id === id ? null : state.currentProject,
+        }));
       },
       
       // Editor management
       setCurrentProject: (id) => {
-        // Ensure projects is always an array before find operation
-        const projects = get().projects || [];
-        const currentProjects = Array.isArray(projects) ? projects : [];
-        
-        const project = currentProjects.find((p) => p.id === id) || null;
+        const project = get().projects.find((p) => p.id === id) || null;
         set({ 
           currentProject: project,
           activeProjectId: project ? id : null, // Update active project ID

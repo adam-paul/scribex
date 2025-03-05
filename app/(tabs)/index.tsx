@@ -41,6 +41,18 @@ export default function MapScreen() {
     return () => unsubscribe();
   }, [offlineChanges, syncWithServer]);
   
+  // Check for any level unlocks needed when the Journey page loads
+  // This helps fix cases where levels weren't properly unlocked
+  useEffect(() => {
+    const checkForUnlocks = async () => {
+      console.log('Journey screen loaded, checking for any pending level unlocks...');
+      const checkAndUnlockNextContent = useProgressStore.getState().checkAndUnlockNextContent;
+      await checkAndUnlockNextContent();
+    };
+    
+    checkForUnlocks();
+  }, []);
+  
   // Animation logic would be triggered by level completion elsewhere
   // Demo animation has been removed to prevent showing on every app launch
   

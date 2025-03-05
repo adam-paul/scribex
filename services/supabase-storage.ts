@@ -12,8 +12,13 @@ const getStorageMechanism = () => {
     return {
       getItem: (key: string) => {
         try {
-          const value = localStorage.getItem(key);
-          return Promise.resolve(value);
+          // Check if window is defined (client-side) before accessing localStorage
+          if (typeof window !== 'undefined') {
+            const value = window.localStorage.getItem(key);
+            return Promise.resolve(value);
+          }
+          // Return null if we're in a server environment
+          return Promise.resolve(null);
         } catch (e) {
           console.error('localStorage error:', e);
           return Promise.resolve(null);
@@ -21,7 +26,10 @@ const getStorageMechanism = () => {
       },
       setItem: (key: string, value: string) => {
         try {
-          localStorage.setItem(key, value);
+          // Check if window is defined (client-side) before accessing localStorage
+          if (typeof window !== 'undefined') {
+            window.localStorage.setItem(key, value);
+          }
           return Promise.resolve();
         } catch (e) {
           console.error('localStorage error:', e);
@@ -30,7 +38,10 @@ const getStorageMechanism = () => {
       },
       removeItem: (key: string) => {
         try {
-          localStorage.removeItem(key);
+          // Check if window is defined (client-side) before accessing localStorage
+          if (typeof window !== 'undefined') {
+            window.localStorage.removeItem(key);
+          }
           return Promise.resolve();
         } catch (e) {
           console.error('localStorage error:', e);

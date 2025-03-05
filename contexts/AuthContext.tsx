@@ -3,6 +3,7 @@ import { useRouter, useSegments } from 'expo-router';
 import supabaseService, { SupabaseUser, UserProfile } from '@/services/supabase-service';
 import { useProgressStore } from '@/stores/progress-store';
 import { useWritingStore } from '@/stores/writing-store';
+import { Platform } from 'react-native';
 
 interface AuthContextType {
   user: SupabaseUser | null;
@@ -106,8 +107,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const initializeAuth = async () => {
       try {
         console.log('Checking for existing session...');
+        
+        // Add timeout for web platform to prevent hanging
+        let timeoutId: NodeJS.Timeout | null = null;
+        
+        if (Platform.OS === 'web') {
+          timeoutId = setTimeout(() => {
+            console.log('Authentication check timed out, proceeding as unauthenticated');
+            setUser(null);
+            setIsLoading(false);
+          }, 5000); // 5 second timeout for web
+        }
+        
         // Get the current session from Supabase
-        const { data } = await supabaseService.getClient().auth.getSession();
+        const { data, error } = await supabaseService.getClient().auth.getSession();
+        
+        // Clear timeout if it was set
+        if (timeoutId) clearTimeout(timeoutId);
+        
+        if (error) {
+          console.error('Error getting session:', error);
+          setUser(null);
+          setIsLoading(false);
+          return;
+        }
         
         if (data.session) {
           // Session exists, refresh user data
@@ -141,13 +164,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         console.log('Auth state changed:', event);
         
         if (session) {
-          const refreshedUser = await supabaseService.refreshUser();
-          setUser(refreshedUser);
-          
-          // Load user data when signed in
-          if (event === 'SIGNED_IN') {
-            // We'll load data after setting the user, in a separate useEffect
-            setDataLoaded(false);
+          try {
+            const refreshedUser = await supabaseService.refreshUser();
+            setUser(refreshedUser);
+            
+            // Load user data when signed in
+            if (event === 'SIGNED_IN') {
+              // We'll load data after setting the user, in a separate useEffect
+              setDataLoaded(false);
+            }
+          } catch (error) {
+            console.error('Error refreshing user after auth state change:', error);
+            // Continue with session data even if refresh fails
+            setUser({
+              id: session.user.id,
+              email: session.user.email
+            });
           }
         } else {
           // Handle sign out - ensure we reset all necessary state
@@ -178,8 +210,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // IMPORTANT: Verify that auth is fully complete before loading data
         try {
           console.log('Verifying authentication status...');
+          
+          // Add timeout for web platform to prevent hanging during data loading
+          let timeoutId: NodeJS.Timeout | null = null;
+          
+          if (Platform.OS === 'web') {
+            timeoutId = setTimeout(() => {
+              console.log('Data loading timed out, proceeding with partial data');
+              setDataLoaded(true); // Mark as loaded to prevent further attempts
+            }, 8000); // 8 second timeout for web data loading
+          }
+          
           // Double-check with Supabase that authentication is complete
-          const { data: authData } = await supabaseService.getClient().auth.getUser();
+          const { data: authData, error } = await supabaseService.getClient().auth.getUser();
+          
+          // Clear timeout if it was set
+          if (timeoutId) clearTimeout(timeoutId);
+          
+          if (error) {
+            console.error('Error verifying authentication:', error);
+            setDataLoaded(true); // Mark as loaded to prevent further attempts
+            return;
+          }
           
           if (authData?.user?.id !== user.id) {
             console.log('Authentication not fully synchronized yet, waiting...');
@@ -193,6 +245,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           await loadUserData();
         } catch (error) {
           console.error('Error verifying authentication:', error);
+          setDataLoaded(true); // Mark as loaded to prevent further attempts
         }
       }
     };

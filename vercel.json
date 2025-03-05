@@ -10,6 +10,14 @@
       "destination": "/email-verified.html"
     },
     {
+      "source": "/web",
+      "destination": "/web"
+    },
+    {
+      "source": "/web/:path*",
+      "destination": "/web"
+    },
+    {
       "source": "/:path*",
       "destination": "/"
     }

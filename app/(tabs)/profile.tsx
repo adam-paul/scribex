@@ -50,17 +50,11 @@ export default function ProfileScreen() {
     setRefreshing(false);
   }, [loadAllData]);
   
-  // Force redirection if not authenticated
+  // Load user data when component mounts
   useEffect(() => {
-    if (!isAuthenticated) {
-      console.log('Profile screen: Not authenticated, redirecting to auth');
-      router.replace('/auth');
-      return;
-    }
-    
     // Load user data if authenticated
     loadAllData();
-  }, [isAuthenticated, router, loadAllData]);
+  }, [loadAllData]);
   
   // If not authenticated, don't render anything
   if (!isAuthenticated || !user) {

@@ -187,47 +187,77 @@ export const useProgressStore = create<ProgressState>()(
         const { progress } = get();
         const { mechanicsProgress, sequencingProgress, unlockedLevels, completedLevels, currentLevel } = progress;
         
-        // Check if current level is completed and should unlock next level
-        if (mechanicsProgress >= 100 && currentLevel === 'mechanics-1') {
-          console.log('Mechanics-1 completed, unlocking mechanics-2');
-          // Unlock mechanics-2 when mechanics-1 is 100% complete
+        console.log('Checking content unlocks. Current state:', {
+          currentLevel,
+          completedLevels,
+          unlockedLevels,
+          mechanicsProgress,
+          sequencingProgress
+        });
+        
+        // First ensure mechanics unlocks are handled correctly
+        // Check if mechanics-1 is completed
+        if ((completedLevels.includes('mechanics-1') || 
+            (mechanicsProgress >= 100 && currentLevel === 'mechanics-1'))) {
+          
+          console.log('Mechanics-1 is completed, checking if mechanics-2 needs unlocking');
+          
+          // If mechanics-1 was just completed but not marked as completed, do so
+          if (!completedLevels.includes('mechanics-1')) {
+            console.log('Marking mechanics-1 as completed');
+            await get().completeLevel('mechanics-1');
+          }
+          
+          // Unlock mechanics-2 if it's not already unlocked
           if (!unlockedLevels.includes('mechanics-2')) {
+            console.log('Unlocking mechanics-2');
             await get().unlockLevel('mechanics-2');
           }
           
-          // Mark the current level as completed
-          if (!completedLevels.includes(currentLevel)) {
-            await get().completeLevel(currentLevel);
+          // If current level is still mechanics-1, update it
+          if (currentLevel === 'mechanics-1') {
+            console.log('Updating current level to mechanics-2');
+            set((state) => ({
+              progress: {
+                ...state.progress,
+                currentLevel: 'mechanics-2',
+                mechanicsProgress: 0, // Reset mechanics progress for the new level
+                lastUpdated: Date.now()
+              }
+            }));
           }
-          
-          // Set current level to mechanics-2
-          set((state) => ({
-            progress: {
-              ...state.progress,
-              currentLevel: 'mechanics-2',
-              mechanicsProgress: 0, // Reset mechanics progress for the new level
-              lastUpdated: Date.now()
-            }
-          }));
         }
         
-        // Check for unlocking sequencing category
-        if (mechanicsProgress >= 100 && currentLevel === 'mechanics-2') {
-          console.log('Mechanics-2 completed, checking for sequencing unlock');
+        // Check if mechanics-2 is completed
+        if ((completedLevels.includes('mechanics-2') || 
+            (mechanicsProgress >= 100 && currentLevel === 'mechanics-2'))) {
           
-          // Mark mechanics-2 as completed
-          if (!completedLevels.includes(currentLevel)) {
-            await get().completeLevel(currentLevel);
+          console.log('Mechanics-2 is completed, checking for sequencing unlock');
+          
+          // If mechanics-2 was just completed but not marked as completed, do so
+          if (!completedLevels.includes('mechanics-2')) {
+            console.log('Marking mechanics-2 as completed');
+            await get().completeLevel('mechanics-2');
           }
           
-          // Unlock sequencing if we've reached the threshold
-          if (mechanicsProgress >= CATEGORY_UNLOCK_THRESHOLDS.sequencing) {
+          // Check if both mechanics levels are completed to correctly calculate mechanics progress
+          const mechanicsLevelsCompleted = 
+            completedLevels.includes('mechanics-1') && 
+            completedLevels.includes('mechanics-2');
+          
+          // Unlock sequencing if mechanics threshold is reached
+          // Either through explicit progress or by completing both mechanics levels
+          if (mechanicsProgress >= CATEGORY_UNLOCK_THRESHOLDS.sequencing || mechanicsLevelsCompleted) {
             const sequencingLevel = LEVELS.find(l => l.id === 'sequencing-1');
-            if (sequencingLevel && !unlockedLevels.includes(sequencingLevel.id)) {
+            
+            if (sequencingLevel && !unlockedLevels.includes('sequencing-1')) {
               console.log('Unlocking sequencing-1');
-              await get().unlockLevel(sequencingLevel.id);
-              
-              // Update current level to sequencing-1
+              await get().unlockLevel('sequencing-1');
+            }
+            
+            // If current level is still mechanics-2, update it
+            if (currentLevel === 'mechanics-2') {
+              console.log('Updating current level to sequencing-1');
               set((state) => ({
                 progress: {
                   ...state.progress,
@@ -240,11 +270,15 @@ export const useProgressStore = create<ProgressState>()(
         }
         
         // Check for unlocking voice category
-        if (sequencingProgress >= CATEGORY_UNLOCK_THRESHOLDS.voice) {
+        // Either through explicit progress or by completing sequencing-1
+        if (sequencingProgress >= CATEGORY_UNLOCK_THRESHOLDS.voice || 
+            completedLevels.includes('sequencing-1')) {
+          
           const voiceLevel = LEVELS.find(l => l.id === 'voice-1');
-          if (voiceLevel && !unlockedLevels.includes(voiceLevel.id)) {
+          
+          if (voiceLevel && !unlockedLevels.includes('voice-1')) {
             console.log('Unlocking voice-1');
-            await get().unlockLevel(voiceLevel.id);
+            await get().unlockLevel('voice-1');
           }
         }
       },

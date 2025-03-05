@@ -43,10 +43,7 @@ interface ProjectListProps {
 }
 
 export function ProjectList({ projects = [], onSelectProject, onDeleteProject }: ProjectListProps) {
-  // IMPORTANT: Ensure projects is always an array, even if undefined is passed
-  const safeProjects = Array.isArray(projects) ? projects : [];
-  
-  if (safeProjects.length === 0) {
+  if (projects.length === 0) {
     return (
       <View style={styles.emptyContainer}>
         <Text style={styles.emptyText}>No projects yet</Text>
@@ -102,10 +99,9 @@ export function ProjectList({ projects = [], onSelectProject, onDeleteProject }:
     );
   };
 
-  // Use the safe array for processing
   return (
     <FlatList
-      data={safeProjects.map(project => ({
+      data={projects.map(project => ({
         ...project,
         // Ensure each project has a valid id - generate one if missing
         id: project.id || `project_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
