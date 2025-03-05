@@ -2,7 +2,7 @@ import FontAwesome from "@expo/vector-icons/FontAwesome";
 import { useFonts } from "expo-font";
 import { Slot, useRouter, usePathname } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Platform, View, ActivityIndicator, Text } from "react-native";
 import { ErrorBoundary } from "./error-boundary";
 import { ThemeProvider } from "@/contexts/ThemeContext";
@@ -17,12 +17,13 @@ SplashScreen.preventAutoHideAsync();
 
 /**
  * This component handles navigation based on auth state
- * It's separate from the loading indicator to avoid navigation issues
+ * and ensures user data is loaded once at the app level
  */
 function AuthNavigationEffect() {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading, user, loadUserData } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
+  const [dataLoaded, setDataLoaded] = useState(false);
   
   // Handle navigation based on auth state
   useEffect(() => {
@@ -39,6 +40,20 @@ function AuthNavigationEffect() {
       }, 0);
     }
   }, [isAuthenticated, isLoading, pathname, router]);
+  
+  // Load user data once when authenticated
+  useEffect(() => {
+    const initializeAppData = async () => {
+      if (isAuthenticated && user && !dataLoaded && !isLoading) {
+        console.log('Loading app data centrally...');
+        await loadUserData();
+        setDataLoaded(true);
+        console.log('App data loaded centrally');
+      }
+    };
+    
+    initializeAppData();
+  }, [isAuthenticated, user, isLoading, dataLoaded, loadUserData]);
   
   // This component doesn't render anything
   return null;
