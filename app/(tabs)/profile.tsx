@@ -27,7 +27,7 @@ export default function ProfileScreen() {
     try {
       // Only fetch rank if user is authenticated
       if (user?.id) {
-        const rank = await supabaseService.getUserRank();
+        const rank = await supabaseService.getUserRank('profile.loadUserRank');
         setUserRank(rank);
       }
     } catch (error) {

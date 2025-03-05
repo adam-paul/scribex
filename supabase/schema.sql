@@ -152,11 +152,17 @@ ALTER TABLE ONLY "public"."user_writing_projects"
 
 
 
+-- Indices for user_progress table
 CREATE INDEX "idx_user_progress_updated_at" ON "public"."user_progress" USING "btree" ("updated_at");
+CREATE INDEX "idx_user_progress_user_id" ON "public"."user_progress" USING "btree" ("user_id");
 
-
-
+-- Indices for user_writing_projects table
 CREATE INDEX "idx_user_writing_projects_updated_at" ON "public"."user_writing_projects" USING "btree" ("updated_at");
+CREATE INDEX "idx_user_writing_projects_user_id" ON "public"."user_writing_projects" USING "btree" ("user_id");
+
+-- Indices for user_profiles table
+CREATE INDEX "idx_user_profiles_xp" ON "public"."user_profiles" USING "btree" ("xp" DESC);
+CREATE INDEX "idx_user_profiles_level" ON "public"."user_profiles" USING "btree" ("level" DESC);
 
 
 

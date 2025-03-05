@@ -11,26 +11,52 @@ export default function LeaderboardScreen() {
   const [leaderboard, setLeaderboard] = useState<UserProfile[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [totalUsers, setTotalUsers] = useState(0);
+  const [currentPage, setCurrentPage] = useState(0);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const USERS_PER_PAGE = 10;
   const { user } = useAuth();
 
-  const fetchLeaderboard = useCallback(async () => {
+  const fetchLeaderboard = useCallback(async (page: number = 0, reset: boolean = true) => {
     try {
-      const data = await supabaseService.getLeaderboardRanking(10);
-      if (data) {
-        setLeaderboard(data);
+      setLoading(reset);
+      if (!reset) setLoadingMore(true);
+
+      const response = await supabaseService.getLeaderboardRanking(page, USERS_PER_PAGE);
+      
+      if (response.data) {
+        if (reset) {
+          // Reset the leaderboard with the first page
+          setLeaderboard(response.data);
+        } else {
+          // Append to existing leaderboard for pagination
+          setLeaderboard(prev => [...prev, ...response.data]);
+        }
+        
+        setTotalUsers(response.total);
+        setCurrentPage(page);
       }
     } catch (error) {
       console.error('Error fetching leaderboard:', error);
     } finally {
       setLoading(false);
+      setLoadingMore(false);
     }
   }, []);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await fetchLeaderboard();
+    await fetchLeaderboard(0, true);
     setRefreshing(false);
   }, [fetchLeaderboard]);
+
+  const loadMore = useCallback(async () => {
+    // Only load more if we haven't loaded all users
+    if (leaderboard.length < totalUsers && !loadingMore) {
+      const nextPage = currentPage + 1;
+      await fetchLeaderboard(nextPage, false);
+    }
+  }, [currentPage, fetchLeaderboard, leaderboard.length, loadingMore, totalUsers]);
 
   useEffect(() => {
     fetchLeaderboard();
@@ -54,45 +80,79 @@ export default function LeaderboardScreen() {
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
+        onScroll={({nativeEvent}) => {
+          // Load more when we're 80% of the way through the current content
+          const {layoutMeasurement, contentOffset, contentSize} = nativeEvent;
+          const paddingToBottom = 20;
+          if (layoutMeasurement.height + contentOffset.y >= 
+              contentSize.height - paddingToBottom) {
+            loadMore();
+          }
+        }}
+        scrollEventThrottle={400}
       >
         <Text style={styles.title}>Leaderboard</Text>
-        <Text style={styles.subtitle}>Top Writers</Text>
+        <Text style={styles.subtitle}>
+          Top Writers {totalUsers > 0 ? `(${leaderboard.length} of ${totalUsers})` : ''}
+        </Text>
 
         {leaderboard.length === 0 ? (
           <Card style={styles.emptyCard}>
             <Text style={styles.emptyText}>No writers on the leaderboard yet. Be the first!</Text>
           </Card>
         ) : (
-          leaderboard.map((profile, index) => {
-            const isCurrentUser = user?.id === profile.user_id;
-            const displayName = profile.display_name || profile.username || 'Anonymous Writer';
-            const avatarUrl = profile.avatar_url || `https://i.pravatar.cc/100?u=${profile.user_id}`;
-            
-            return (
-              <Card 
-                key={profile.user_id} 
-                style={{
-                  ...styles.userCard,
-                  ...(isCurrentUser ? styles.currentUserCard : {})
-                }}
-              >
-                <View style={styles.userInfo}>
-                  <Text style={styles.rank}>#{index + 1}</Text>
-                  <Image source={{ uri: avatarUrl }} style={styles.avatar} />
-                  <View style={styles.nameContainer}>
-                    <Text style={{
-                      ...styles.name,
-                      ...(isCurrentUser ? styles.currentUserText : {})
-                    }}>
-                      {displayName} {isCurrentUser && '(You)'}
-                    </Text>
-                    {index === 0 && <Crown size={16} color="#FFD700" />}
+          <>
+            {leaderboard.map((profile, index) => {
+              const isCurrentUser = user?.id === profile.user_id;
+              const displayName = profile.display_name || profile.username || 'Anonymous Writer';
+              const avatarUrl = profile.avatar_url || `https://i.pravatar.cc/100?u=${profile.user_id}`;
+              const rankNumber = (currentPage * USERS_PER_PAGE) + index + 1;
+              
+              return (
+                <Card 
+                  key={profile.user_id} 
+                  style={{
+                    ...styles.userCard,
+                    ...(isCurrentUser ? styles.currentUserCard : {})
+                  }}
+                >
+                  <View style={styles.userInfo}>
+                    <Text style={styles.rank}>#{rankNumber}</Text>
+                    <Image source={{ uri: avatarUrl }} style={styles.avatar} />
+                    <View style={styles.nameContainer}>
+                      <Text style={{
+                        ...styles.name,
+                        ...(isCurrentUser ? styles.currentUserText : {})
+                      }}>
+                        {displayName} {isCurrentUser && '(You)'}
+                      </Text>
+                      {rankNumber === 1 && <Crown size={16} color="#FFD700" />}
+                    </View>
+                    <Text style={styles.score}>{profile.xp} XP</Text>
                   </View>
-                  <Text style={styles.score}>{profile.xp} XP</Text>
-                </View>
-              </Card>
-            );
-          })
+                </Card>
+              );
+            })}
+            
+            {loadingMore && (
+              <View style={styles.loadingMore}>
+                <ActivityIndicator size="small" color={colors.primary} />
+                <Text style={styles.loadingMoreText}>Loading more...</Text>
+              </View>
+            )}
+            
+            {!loadingMore && leaderboard.length < totalUsers && (
+              <Text style={styles.moreAvailable}>
+                Scroll down to load more writers
+              </Text>
+            )}
+            
+            {leaderboard.length === totalUsers && (
+              <Text style={styles.allLoaded}>
+                All writers loaded!
+              </Text>
+            )}
+          </>
         )}
       </ScrollView>
     </SafeAreaView>
@@ -106,6 +166,7 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: 16,
+    paddingBottom: 40,
   },
   loadingContainer: {
     flex: 1,
@@ -181,5 +242,31 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: colors.textSecondary,
     textAlign: 'center',
+  },
+  loadingMore: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 16,
+    gap: 8,
+  },
+  loadingMoreText: {
+    fontSize: 14,
+    color: colors.textSecondary,
+  },
+  moreAvailable: {
+    textAlign: 'center',
+    fontSize: 14,
+    color: colors.textSecondary,
+    marginTop: 12,
+    marginBottom: 8,
+  },
+  allLoaded: {
+    textAlign: 'center',
+    fontSize: 14,
+    fontWeight: '500',
+    color: colors.success,
+    marginTop: 16,
+    marginBottom: 8,
   },
 });

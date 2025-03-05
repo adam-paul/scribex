@@ -230,8 +230,10 @@ class SupabaseService {
   }
 
   public async signOut(): Promise<void> {
-    await this.supabase.auth.signOut();
+    // Clear user reference first to prevent any data operations during signout
     this.user = null;
+    // Then sign out from Supabase
+    await this.supabase.auth.signOut();
   }
 
   public getCurrentUser(): SupabaseUser | null {
@@ -239,28 +241,13 @@ class SupabaseService {
   }
 
   // Progress Management Methods
-  public async saveProgress(progress: UserProgress): Promise<boolean> {
+  public async saveProgress(progress: UserProgress, source: string = 'unknown'): Promise<boolean> {
     if (!this.user) {
-      console.error('Cannot save progress: No user is logged in');
+      console.error(`Cannot save progress: No user is logged in (called from: ${source})`);
       return false;
     }
 
     try {
-      // First verify that authentication is complete and the user exists in the database
-      // This prevents foreign key constraint violations
-      try {
-        const { data: userData, error: userError } = await this.supabase.auth.getUser();
-        
-        if (userError || !userData.user || userData.user.id !== this.user.id) {
-          console.error('Cannot save progress: Authentication not fully established');
-          return false;
-        }
-      } catch (authError) {
-        console.error('Error verifying authentication:', authError);
-        return false;
-      }
-
-      // Now proceed with the save operation
       const { error } = await this.supabase
         .from('user_progress')
         .upsert(
@@ -284,9 +271,73 @@ class SupabaseService {
     }
   }
 
-  public async getProgress(): Promise<UserProgress | null> {
+  // Save only specific fields of progress that have changed
+  public async savePartialProgress(partialProgress: Partial<UserProgress>, source: string = 'unknown'): Promise<boolean> {
     if (!this.user) {
-      console.error('Cannot get progress: No user is logged in');
+      console.error(`Cannot save partial progress: No user is logged in (called from: ${source})`);
+      return false;
+    }
+
+    try {
+      // First get current progress
+      const { data, error: fetchError } = await this.supabase
+        .from('user_progress')
+        .select('progress_data')
+        .eq('user_id', this.user.id)
+        .single();
+      
+      if (fetchError && fetchError.code !== 'PGRST116') {
+        console.error('Error fetching existing progress:', fetchError.message);
+        return false;
+      }
+      
+      // Merge with existing progress or create new
+      const currentProgress = data?.progress_data as UserProgress || {
+        currentLevel: 'mechanics-1',
+        mechanicsProgress: 0,
+        sequencingProgress: 0,
+        voiceProgress: 0,
+        completedLevels: [],
+        unlockedLevels: ['mechanics-1'],
+        totalScore: 0,
+        dailyStreak: 0,
+        achievements: [],
+        lastUpdated: Date.now(),
+      };
+      
+      const updatedProgress = {
+        ...currentProgress,
+        ...partialProgress,
+        lastUpdated: Date.now()
+      };
+      
+      // Save the merged progress
+      const { error } = await this.supabase
+        .from('user_progress')
+        .upsert(
+          { 
+            user_id: this.user.id,
+            progress_data: updatedProgress,
+            updated_at: new Date().toISOString()
+          },
+          { onConflict: 'user_id' }
+        );
+
+      if (error) {
+        console.error('Error saving partial progress:', error.message);
+        return false;
+      }
+
+      return true;
+    } catch (e) {
+      console.error('Exception saving partial progress:', e);
+      return false;
+    }
+  }
+
+  public async getProgress(source: string = 'unknown'): Promise<UserProgress | null> {
+    if (!this.user) {
+      console.error(`Cannot get progress: No user is logged in (called from: ${source})`);
       return null;
     }
 
@@ -314,28 +365,13 @@ class SupabaseService {
   }
 
   // Writing Projects Management Methods
-  public async saveWritingProjects(projects: WritingProject[]): Promise<boolean> {
+  public async saveWritingProjects(projects: WritingProject[], source: string = 'unknown'): Promise<boolean> {
     if (!this.user) {
-      console.error('Cannot save writing projects: No user is logged in');
+      console.error(`Cannot save writing projects: No user is logged in (called from: ${source})`);
       return false;
     }
 
     try {
-      // First verify that authentication is complete and the user exists in the database
-      // This prevents foreign key constraint violations
-      try {
-        const { data: userData, error: userError } = await this.supabase.auth.getUser();
-        
-        if (userError || !userData.user || userData.user.id !== this.user.id) {
-          console.error('Cannot save writing projects: Authentication not fully established');
-          return false;
-        }
-      } catch (authError) {
-        console.error('Error verifying authentication:', authError);
-        return false;
-      }
-
-      // Now proceed with the save operation
       const { error } = await this.supabase
         .from('user_writing_projects')
         .upsert(
@@ -359,9 +395,118 @@ class SupabaseService {
     }
   }
 
-  public async getWritingProjects(): Promise<WritingProject[] | null> {
+  // Save a single writing project (more efficient than saving all)
+  public async saveWritingProject(project: WritingProject, source: string = 'unknown'): Promise<boolean> {
     if (!this.user) {
-      console.error('Cannot get writing projects: No user is logged in');
+      console.error(`Cannot save writing project: No user is logged in (called from: ${source})`);
+      return false;
+    }
+
+    try {
+      // First get current projects
+      const { data, error: fetchError } = await this.supabase
+        .from('user_writing_projects')
+        .select('projects_data')
+        .eq('user_id', this.user.id)
+        .single();
+      
+      if (fetchError && fetchError.code !== 'PGRST116') {
+        console.error('Error fetching existing projects:', fetchError.message);
+        return false;
+      }
+      
+      // Initialize or update projects list
+      const currentProjects = (data?.projects_data as WritingProject[]) || [];
+      const projectIndex = currentProjects.findIndex(p => p.id === project.id);
+      
+      let updatedProjects;
+      if (projectIndex >= 0) {
+        // Update existing project
+        updatedProjects = [
+          ...currentProjects.slice(0, projectIndex),
+          project,
+          ...currentProjects.slice(projectIndex + 1)
+        ];
+      } else {
+        // Add new project
+        updatedProjects = [...currentProjects, project];
+      }
+      
+      // Save the updated projects list
+      const { error } = await this.supabase
+        .from('user_writing_projects')
+        .upsert(
+          { 
+            user_id: this.user.id,
+            projects_data: updatedProjects,
+            updated_at: new Date().toISOString()
+          },
+          { onConflict: 'user_id' }
+        );
+
+      if (error) {
+        console.error('Error saving writing project:', error.message);
+        return false;
+      }
+
+      return true;
+    } catch (e) {
+      console.error('Exception saving writing project:', e);
+      return false;
+    }
+  }
+
+  // Delete a single writing project
+  public async deleteWritingProject(projectId: string, source: string = 'unknown'): Promise<boolean> {
+    if (!this.user) {
+      console.error(`Cannot delete writing project: No user is logged in (called from: ${source})`);
+      return false;
+    }
+
+    try {
+      // First get current projects
+      const { data, error: fetchError } = await this.supabase
+        .from('user_writing_projects')
+        .select('projects_data')
+        .eq('user_id', this.user.id)
+        .single();
+      
+      if (fetchError) {
+        console.error('Error fetching existing projects:', fetchError.message);
+        return false;
+      }
+      
+      // Remove the project from the list
+      const currentProjects = data?.projects_data as WritingProject[] || [];
+      const updatedProjects = currentProjects.filter(p => p.id !== projectId);
+      
+      // Save the updated projects list
+      const { error } = await this.supabase
+        .from('user_writing_projects')
+        .upsert(
+          { 
+            user_id: this.user.id,
+            projects_data: updatedProjects,
+            updated_at: new Date().toISOString()
+          },
+          { onConflict: 'user_id' }
+        );
+
+      if (error) {
+        console.error('Error deleting writing project:', error.message);
+        return false;
+      }
+
+      return true;
+    } catch (e) {
+      console.error('Exception deleting writing project:', e);
+      return false;
+    }
+  }
+
+  public async getWritingProjects(source: string = 'unknown'): Promise<WritingProject[] | null> {
+    if (!this.user) {
+      console.error(`Cannot get writing projects: No user is logged in (called from: ${source})`);
       return null;
     }
 
@@ -389,9 +534,9 @@ class SupabaseService {
   }
 
   // Profile Management Methods
-  public async getUserProfile(): Promise<UserProfile | null> {
+  public async getUserProfile(source: string = 'unknown'): Promise<UserProfile | null> {
     if (!this.user) {
-      console.error('Cannot get profile: No user is logged in');
+      console.error(`Cannot get profile: No user is logged in (called from: ${source})`);
       return null;
     }
 
@@ -418,9 +563,9 @@ class SupabaseService {
     }
   }
 
-  public async createOrUpdateUserProfile(profileData: Partial<UserProfile>): Promise<UserProfile | null> {
+  public async createOrUpdateUserProfile(profileData: Partial<UserProfile>, source: string = 'unknown'): Promise<UserProfile | null> {
     if (!this.user) {
-      console.error('Cannot update profile: No user is logged in');
+      console.error(`Cannot update profile: No user is logged in (called from: ${source})`);
       return null;
     }
 
@@ -476,9 +621,9 @@ class SupabaseService {
     }
   }
 
-  public async updateUserLevel(level: number, xp: number): Promise<boolean> {
+  public async updateUserLevel(level: number, xp: number, source: string = 'unknown'): Promise<boolean> {
     if (!this.user) {
-      console.error('Cannot update level: No user is logged in');
+      console.error(`Cannot update level: No user is logged in (called from: ${source})`);
       return false;
     }
 
@@ -504,49 +649,67 @@ class SupabaseService {
     }
   }
 
-  public async getLeaderboardRanking(limit: number = 10): Promise<UserProfile[] | null> {
+  // Get leaderboard data with pagination support
+  public async getLeaderboardRanking(
+    page: number = 0, 
+    limit: number = 10
+  ): Promise<{data: UserProfile[] | null, total: number}> {
     try {
+      // First get the total count for pagination
+      const { count, error: countError } = await this.supabase
+        .from('user_profiles')
+        .select('*', { count: 'exact', head: true });
+        
+      if (countError) {
+        console.error('Error getting leaderboard count:', countError.message);
+        return { data: null, total: 0 };
+      }
+      
+      // Now get the actual data with pagination
+      const offset = page * limit;
+      
       const { data, error } = await this.supabase
         .from('user_profiles')
         .select('*')
         .order('xp', { ascending: false })
-        .limit(limit);
+        .range(offset, offset + limit - 1);
 
       if (error) {
         console.error('Error getting leaderboard:', error.message);
-        return null;
+        return { data: null, total: count || 0 };
       }
 
-      return data as UserProfile[];
+      return { 
+        data: data as UserProfile[], 
+        total: count || 0 
+      };
     } catch (e) {
       console.error('Exception getting leaderboard:', e);
-      return null;
+      return { data: null, total: 0 };
     }
   }
-
-  public async getUserRank(): Promise<number | null> {
+  
+  // More efficient ranking query that only gets needed information
+  public async getUserRank(source: string = 'unknown'): Promise<number | null> {
     if (!this.user) {
-      console.error('Cannot get rank: No user is logged in');
+      console.error(`Cannot get rank: No user is logged in (called from: ${source})`);
       return null;
     }
 
     try {
-      // Get all profiles ordered by XP
+      // Use the leaderboard view which has precomputed ranks
       const { data, error } = await this.supabase
-        .from('user_profiles')
-        .select('user_id, xp')
-        .order('xp', { ascending: false });
+        .from('leaderboard')
+        .select('rank')
+        .eq('user_id', this.user.id)
+        .single();
 
       if (error) {
         console.error('Error getting user rank:', error.message);
         return null;
       }
 
-      // Find the user's position in the array (0-indexed)
-      const userIndex = data.findIndex(profile => profile.user_id === this.user?.id);
-      
-      // Return 1-indexed rank (or null if not found)
-      return userIndex >= 0 ? userIndex + 1 : null;
+      return data?.rank || null;
     } catch (e) {
       console.error('Exception getting user rank:', e);
       return null;

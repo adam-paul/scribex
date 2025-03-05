@@ -23,37 +23,18 @@ function AuthNavigationEffect() {
   const { isAuthenticated, isLoading, user, loadUserData } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
-  const [dataLoaded, setDataLoaded] = useState(false);
   
   // Handle navigation based on auth state
   useEffect(() => {
     // Skip if still loading
     if (isLoading) return;
     
-    // Handle sign out case - if we're not on the auth page and not authenticated
-    const isAuthPath = pathname.startsWith('/auth');
-    if (!isAuthenticated && !isAuthPath && pathname !== '/') {
-      console.log('Auth navigation effect: Not authenticated, redirecting to /', { pathname });
-      // Use setTimeout to avoid navigation during render
-      setTimeout(() => {
-        router.replace('/');
-      }, 0);
+    // Load user data once when authenticated
+    if (isAuthenticated && user) {
+      loadUserData();
     }
-  }, [isAuthenticated, isLoading, pathname, router]);
-  
-  // Load user data once when authenticated
-  useEffect(() => {
-    const initializeAppData = async () => {
-      if (isAuthenticated && user && !dataLoaded && !isLoading) {
-        console.log('Loading app data centrally...');
-        await loadUserData();
-        setDataLoaded(true);
-        console.log('App data loaded centrally');
-      }
-    };
-    
-    initializeAppData();
-  }, [isAuthenticated, user, isLoading, dataLoaded, loadUserData]);
+    // No navigation on logout - handled by root index.tsx
+  }, [isAuthenticated, isLoading, user, loadUserData]);
   
   // This component doesn't render anything
   return null;

@@ -117,6 +117,7 @@ export const useWritingStore = create<WritingState>()(
           
           const wordCount = content.trim().split(/\s+/).filter(Boolean).length;
           
+          // First update the local state
           set((state) => ({
             currentProject: state.currentProject 
               ? withTimestamp({
@@ -130,12 +131,39 @@ export const useWritingStore = create<WritingState>()(
           // Also update the project in the projects array
           const { currentProject } = get();
           if (currentProject) {
-            // Call updateProject directly without a redundant try/catch (handled by callers)
+            // Update in the projects array
             projectActions.updateProject({
               id: currentProject.id,
               content,
               wordCount,
             });
+            
+            // Debounce database updates - create a local debounce timer
+            if (typeof window !== 'undefined') {
+              // Clear previous timer if it exists
+              if (window['_syncTimer']) {
+                clearTimeout(window['_syncTimer']);
+              }
+              
+              // Set a new timer to sync after 2 seconds of inactivity
+              window['_syncTimer'] = setTimeout(async () => {
+                // Get the latest version of the project before syncing
+                const latestProject = get().projects.find(p => p.id === currentProject.id);
+                if (latestProject) {
+                  // Only sync if we have at least 50 words (to avoid constant syncing of empty projects)
+                  if (latestProject.wordCount >= 50) {
+                    try {
+                      const syncSuccess = await syncActions.syncProject(latestProject);
+                      if (!syncSuccess) {
+                        console.log('Background sync failed, will try later');
+                      }
+                    } catch (e) {
+                      console.error('Error in debounced sync:', e);
+                    }
+                  }
+                }
+              }, 2000);
+            }
           }
         },
         
@@ -151,6 +179,59 @@ export const useWritingStore = create<WritingState>()(
         },
       };
     
+      // Add sync functionality
+      const syncActions = {
+        syncProject: async (project: WritingProject): Promise<boolean> => {
+          try {
+            // Check if user is logged in via Supabase service
+            const user = supabaseService.getCurrentUser();
+            if (!user) return false; // Can't sync if not logged in
+            
+            // Use the more efficient single project update
+            return await supabaseService.saveWritingProject(project, 'writing-store.syncProject');
+          } catch (e) {
+            console.error('Error syncing project:', e);
+            return false;
+          }
+        },
+        
+        syncAllProjects: async (): Promise<boolean> => {
+          try {
+            const { projects } = get();
+            
+            // Check if user is logged in via Supabase service
+            const user = supabaseService.getCurrentUser();
+            if (!user) return false; // Can't sync if not logged in
+            
+            return await supabaseService.saveWritingProjects(projects, 'writing-store.syncAllProjects');
+          } catch (e) {
+            console.error('Error syncing all projects:', e);
+            return false;
+          }
+        },
+        
+        deleteAndSync: async (id: string): Promise<boolean> => {
+          try {
+            // Check if user is logged in
+            const user = supabaseService.getCurrentUser();
+            if (!user) {
+              // Just do the local deletion
+              projectActions.deleteProject(id);
+              return false;
+            }
+            
+            // Do the local deletion first
+            projectActions.deleteProject(id);
+            
+            // Then sync with the server
+            return await supabaseService.deleteWritingProject(id, 'writing-store.deleteAndSync');
+          } catch (e) {
+            console.error('Error deleting and syncing project:', e);
+            return false;
+          }
+        }
+      };
+    
       // Return combined state and actions
       return {
         // Initial data state
@@ -164,18 +245,15 @@ export const useWritingStore = create<WritingState>()(
         ...projectActions,
         ...editorActions,
         ...genreActions,
+        ...syncActions,
       };
     },
     {
       name: 'writing-storage',
       storage: createWritingStorage(),
-      // Add listener to sync with Supabase when changes occur
       onRehydrateStorage: () => (state) => {
         if (state) {
           console.log('Writing store rehydrated successfully');
-          // Do not automatically sync on rehydration
-          // Data syncing should only happen after explicit load/save operations
-          // This prevents race conditions with authentication
         }
       }
     }

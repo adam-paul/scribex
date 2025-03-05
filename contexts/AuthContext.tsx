@@ -38,19 +38,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, []);
   
-  // Load user data from Supabase - simplified version
+  // Load user data from Supabase (simplified)
   const loadUserData = useMemo(() => {
     return async (): Promise<void> => {
       if (!user) return;
       
       try {
-        console.log('Loading user data from Supabase...');
-        
         // Load all data in parallel for better performance
         const [progressData, writingData, userProfile] = await Promise.all([
-          supabaseService.getProgress(),
-          supabaseService.getWritingProjects(),
-          supabaseService.getUserProfile()
+          supabaseService.getProgress('AuthContext.loadUserData'),
+          supabaseService.getWritingProjects('AuthContext.loadUserData'),
+          supabaseService.getUserProfile('AuthContext.loadUserData')
         ]);
         
         // Set progress data or reset to default
@@ -69,7 +67,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             username: user.email?.split('@')[0] || `user_${user.id.substring(0, 8)}`,
             level: 1,
             xp: 0
-          });
+          }, 'AuthContext.loadUserData.createProfile');
           await supabaseService.refreshUser();
         }
       } catch (error) {
@@ -78,24 +76,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, [user, setProgress, resetProgress, setProjects]);
 
-  // Set up auth state - simplified
+  // Set up auth state once
   useEffect(() => {
-    console.log('Initializing authentication state...');
+    // Local variable to prevent duplicate initialization
+    let isInitialized = false;
     
-    // Check for existing session
+    // One-time auth initialization
     const initializeAuth = async () => {
+      // Skip if already initialized
+      if (isInitialized) return;
+      isInitialized = true;
+      
       try {
         const { data, error } = await supabaseService.getClient().auth.getSession();
         
         if (error) {
-          console.error('Error getting session:', error);
           setUser(null);
         } else if (data.session) {
           const refreshedUser = await supabaseService.refreshUser();
           setUser(refreshedUser);
-          
-          // Load user data immediately
-          setTimeout(() => loadUserData(), 0);
+          loadUserData();
         } else {
           setUser(null);
         }
@@ -109,14 +109,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     
     // Set up auth state listener
     const { data: { subscription } } = supabaseService.getClient().auth.onAuthStateChange(
-      async (event, session) => {
+      (event, session) => {
         if (session) {
-          const refreshedUser = await supabaseService.refreshUser();
-          setUser(refreshedUser);
-          
-          // Load user data on sign in
+          // Only refresh user on sign in
           if (event === 'SIGNED_IN') {
-            setTimeout(() => loadUserData(), 0);
+            supabaseService.refreshUser().then(refreshedUser => {
+              setUser(refreshedUser);
+              loadUserData();
+            });
           }
         } else if (event === 'SIGNED_OUT') {
           setUser(null);
@@ -124,7 +124,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     );
     
-    // Begin authentication check
+    // Begin initialization
     initializeAuth();
     
     // Clean up subscription
@@ -133,12 +133,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, [loadUserData]);
 
-  // Sign out function - simplified
+  // Sign out function with cleanup before auth signout
   const signOut = async () => {
     try {
       setIsLoading(true);
+      
+      // Clear any pending sync timers in the writing store
+      if (typeof window !== 'undefined' && window['_syncTimer']) {
+        clearTimeout(window['_syncTimer']);
+        window['_syncTimer'] = null;
+      }
+      
+      // Wait a moment for any in-flight operations to complete
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      // Now perform the actual sign out
       await supabaseService.signOut();
-      setUser(null);
+      // User will be set to null by the auth state change listener
     } catch (error) {
       console.error('Error signing out:', error);
     } finally {
@@ -151,7 +162,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!user) return null;
     
     try {
-      const updatedProfile = await supabaseService.createOrUpdateUserProfile(profileData);
+      const updatedProfile = await supabaseService.createOrUpdateUserProfile(profileData, 'AuthContext.updateUserProfile');
       
       if (updatedProfile) {
         setUser(prevUser => prevUser ? {

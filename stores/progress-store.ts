@@ -307,10 +307,13 @@ export const useProgressStore = create<ProgressState>()(
           offlineChanges: true,
         })),
         
-      // Helper function to update state and queue sync
+      // Helper function to update state and queue sync - optimized with partial updates
       _updateProgressAndSync: async (updateFn) => {
         // Check network status once
         const netInfo = await NetInfo.fetch();
+        
+        // Keep track of what fields changed for partial sync
+        let changedFields: Partial<UserProgress> = {};
         
         // Apply the update function to state
         set((state) => {
@@ -318,15 +321,33 @@ export const useProgressStore = create<ProgressState>()(
           // If no changes, return original state
           if (!result) return state;
           
+          // Track which fields actually changed
+          if (result.progress) {
+            const currentProgress = state.progress;
+            for (const key in result.progress) {
+              if (JSON.stringify(result.progress[key]) !== JSON.stringify(currentProgress[key])) {
+                changedFields[key] = result.progress[key];
+              }
+            }
+          }
+          
           return {
             ...result,
             offlineChanges: !netInfo.isConnected,
           };
         });
         
-        // Sync once after state update if online
-        if (netInfo.isConnected) {
-          await get().syncWithServer();
+        // Sync only changed fields if online (delta update)
+        if (netInfo.isConnected && Object.keys(changedFields).length > 0) {
+          // Instead of syncing the entire progress, only sync changed fields
+          try {
+            await supabaseService.savePartialProgress(changedFields);
+            get().markSynced();
+          } catch (error) {
+            console.error('Error syncing partial progress:', error);
+            // Mark as having offline changes if sync fails
+            set({ offlineChanges: true });
+          }
         }
       },
 
@@ -499,6 +520,10 @@ export const useProgressStore = create<ProgressState>()(
       },
       
       updateUserProfileFromProgress: async () => {
+        // Check if user is logged in before updating profile
+        const user = supabaseService.getCurrentUser();
+        if (!user) return;
+        
         const { progress } = get();
         
         // Calculate XP based on progress
@@ -508,7 +533,7 @@ export const useProgressStore = create<ProgressState>()(
         const level = calculateLevel(xp);
         
         // Update user profile with new level and XP
-        await supabaseService.updateUserLevel(level, xp);
+        await supabaseService.updateUserLevel(level, xp, 'progress-store.updateUserProfileFromProgress');
         
         // Refresh user data to get updated profile
         await supabaseService.refreshUser();
@@ -522,9 +547,25 @@ export const useProgressStore = create<ProgressState>()(
           return true;
         }
         
+        // Check network connectivity first
+        const netInfo = await NetInfo.fetch();
+        if (!netInfo.isConnected) {
+          return false;
+        }
+        
         try {
-          // Save progress to server
-          const success = await supabaseService.saveProgress(progress);
+          // Avoid excessive writes by using a debounced strategy
+          const lastSyncTime = get().lastSyncTime || 0;
+          const timeSinceLastSync = Date.now() - lastSyncTime;
+          
+          // Only sync if it's been more than 10 seconds since last sync 
+          // or if we're explicitly forcing a sync
+          if (timeSinceLastSync < 10000) {
+            return true; // Still return true to avoid triggering error flows
+          }
+        
+          // Save progress to server (full sync in this case)
+          const success = await supabaseService.saveProgress(progress, 'progress-store.syncWithServer');
           
           if (success) {
             // Update user profile with new level and XP
@@ -558,31 +599,6 @@ export const useProgressStore = create<ProgressState>()(
           return;
         }
         console.log('Progress store rehydrated successfully');
-        
-        // Update user profile with XP after rehydration if user is authenticated
-        // This ensures the profile XP is always in sync with the progress
-        setTimeout(async () => {
-          const user = supabaseService.getCurrentUser();
-          if (user) {
-            try {
-              // Calculate XP based on progress
-              const xp = calculateXP(state.progress);
-              
-              // Calculate level based on XP
-              const level = calculateLevel(xp);
-              
-              // Update user profile with new level and XP
-              await supabaseService.updateUserLevel(level, xp);
-              
-              // Refresh user data to get updated profile
-              await supabaseService.refreshUser();
-              
-              console.log('Updated user profile with XP:', xp, 'and level:', level);
-            } catch (error) {
-              console.error('Error updating user profile after rehydration:', error);
-            }
-          }
-        }, 1000); // Delay to ensure auth is initialized
       }
     }
   )
