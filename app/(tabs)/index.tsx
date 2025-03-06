@@ -75,14 +75,8 @@ export default function MapScreen() {
               key={level.id}
               level={{
                 ...level,
-                // For mechanics, we need to track each level individually now
                 progress: progress.completedLevels.includes(level.id) ? 100 : // If completed, show 100%
-                          level.type === 'mechanics' ? 
-                            // For mechanics levels, check if this specific level is being tracked
-                            (level.id === progress.currentLevel && level.type === 'mechanics') ? 
-                              progress.mechanicsProgress : 0 :
-                          level.type === 'sequencing' ? progress.sequencingProgress : 
-                          level.type === 'voice' ? progress.voiceProgress : 0,
+                         progress.levelProgress[level.id] || 0, // Otherwise show level-specific progress
                 isCompleted: progress.completedLevels.includes(level.id),
                 isUnlocked: progress.unlockedLevels.includes(level.id),
               }}

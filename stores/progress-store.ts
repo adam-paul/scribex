@@ -147,9 +147,7 @@ interface ProgressState {
 
 const initialProgress: UserProgress = {
   currentLevel: 'mechanics-1',
-  mechanicsProgress: 0,
-  sequencingProgress: 0,
-  voiceProgress: 0,
+  levelProgress: { 'mechanics-1': 0 },
   completedLevels: [],
   unlockedLevels: ['mechanics-1'],
   totalScore: 0,
@@ -174,15 +172,15 @@ export const useProgressStore = create<ProgressState>()(
       
       // Check if a category is unlocked based on progress in prerequisite category
       isCategoryUnlocked: (category) => {
-        const { mechanicsProgress, sequencingProgress } = get().progress;
+        const { levelProgress } = get().progress;
         
         switch(category) {
           case 'mechanics':
             return true; // Always unlocked by default
           case 'sequencing':
-            return mechanicsProgress >= CATEGORY_UNLOCK_THRESHOLDS.sequencing; 
+            return levelProgress['mechanics-1'] >= CATEGORY_UNLOCK_THRESHOLDS.sequencing; 
           case 'voice':
-            return sequencingProgress >= CATEGORY_UNLOCK_THRESHOLDS.voice;
+            return levelProgress['sequencing-1'] >= CATEGORY_UNLOCK_THRESHOLDS.voice;
           default:
             return false;
         }
@@ -191,14 +189,13 @@ export const useProgressStore = create<ProgressState>()(
       // Check progress and unlock next levels and categories if thresholds are met
       checkAndUnlockNextContent: async () => {
         const { progress } = get();
-        const { mechanicsProgress, sequencingProgress, unlockedLevels, completedLevels, currentLevel } = progress;
+        const { levelProgress, unlockedLevels, completedLevels, currentLevel } = progress;
         
         console.log('Checking content unlocks. Current state:', {
           currentLevel,
           completedLevels,
           unlockedLevels,
-          mechanicsProgress,
-          sequencingProgress
+          levelProgress
         });
         
         // Helper to handle level completion logic
@@ -225,9 +222,10 @@ export const useProgressStore = create<ProgressState>()(
                 progress: {
                   ...state.progress,
                   currentLevel: nextLevelId,
-                  // Reset category progress when moving to a new level within same category
-                  ...(nextLevelId.includes(levelId.split('-')[0]) ? 
-                      { [levelId.split('-')[0] + 'Progress']: 0 } : {}),
+                  levelProgress: {
+                    ...state.progress.levelProgress,
+                    [nextLevelId]: 0
+                  },
                   lastUpdated: Date.now()
                 }
               }));
@@ -235,30 +233,11 @@ export const useProgressStore = create<ProgressState>()(
           }
         };
         
-        // Handle category unlocking based on thresholds
-        const unlockCategoryIfNeeded = async (
-          prerequisiteProgress: number,
-          prerequisiteThreshold: number,
-          categoryToUnlock: string,
-          levelToUnlock: string
-        ) => {
-          if (prerequisiteProgress >= prerequisiteThreshold) {
-            // Find the level in global levels array
-            const levelObj = LEVELS.find(l => l.id === levelToUnlock);
-            
-            // Unlock if it exists and isn't already unlocked
-            if (levelObj && !unlockedLevels.includes(levelToUnlock)) {
-              console.log(`Unlocking ${categoryToUnlock} category: ${levelToUnlock}`);
-              await get().unlockLevel(levelToUnlock);
-            }
-          }
-        };
-        
         // Process level progression
         if (currentLevel === 'mechanics-1') {
-          await handleLevelProgress('mechanics-1', mechanicsProgress, 'mechanics-2');
+          await handleLevelProgress('mechanics-1', levelProgress['mechanics-1'], 'mechanics-2');
         } else if (currentLevel === 'mechanics-2') {
-          await handleLevelProgress('mechanics-2', mechanicsProgress, 'sequencing-1');
+          await handleLevelProgress('mechanics-2', levelProgress['mechanics-2'], 'sequencing-1');
         }
         
         // Process category unlocks based on thresholds
@@ -268,24 +247,14 @@ export const useProgressStore = create<ProgressState>()(
           completedLevels.includes('mechanics-1') && 
           completedLevels.includes('mechanics-2');
           
-        if (mechanicsLevelsCompleted || mechanicsProgress >= CATEGORY_UNLOCK_THRESHOLDS.sequencing) {
-          await unlockCategoryIfNeeded(
-            mechanicsProgress, 
-            CATEGORY_UNLOCK_THRESHOLDS.sequencing,
-            'sequencing',
-            'sequencing-1'
-          );
+        if (mechanicsLevelsCompleted || levelProgress['mechanics-1'] >= CATEGORY_UNLOCK_THRESHOLDS.sequencing) {
+          await handleLevelProgress('sequencing-1', levelProgress['sequencing-1'], 'sequencing-2');
         }
         
         // Voice category unlock  
         const sequencingLevelCompleted = completedLevels.includes('sequencing-1');
-        if (sequencingLevelCompleted || sequencingProgress >= CATEGORY_UNLOCK_THRESHOLDS.voice) {
-          await unlockCategoryIfNeeded(
-            sequencingProgress,
-            CATEGORY_UNLOCK_THRESHOLDS.voice,
-            'voice',
-            'voice-1'
-          );
+        if (sequencingLevelCompleted || levelProgress['sequencing-1'] >= CATEGORY_UNLOCK_THRESHOLDS.voice) {
+          await handleLevelProgress('voice-1', levelProgress['voice-1'], 'voice-2');
         }
       },
       
@@ -309,26 +278,24 @@ export const useProgressStore = create<ProgressState>()(
         
       // Helper function to update state and queue sync - optimized with partial updates
       _updateProgressAndSync: async (updateFn) => {
-        // Check network status once
         const netInfo = await NetInfo.fetch();
         
-        // Keep track of what fields changed for partial sync
         let changedFields: Partial<UserProgress> = {};
         
-        // Apply the update function to state
         set((state) => {
           const result = updateFn(state);
-          // If no changes, return original state
           if (!result) return state;
           
-          // Track which fields actually changed
           if (result.progress) {
             const currentProgress = state.progress;
-            for (const key in result.progress) {
-              if (JSON.stringify(result.progress[key]) !== JSON.stringify(currentProgress[key])) {
-                changedFields[key] = result.progress[key];
+            const resultProgress = result.progress;
+            
+            // Type-safe way to check and copy changed fields
+            (Object.keys(resultProgress) as Array<keyof UserProgress>).forEach(key => {
+              if (JSON.stringify(resultProgress[key]) !== JSON.stringify(currentProgress[key])) {
+                (changedFields as any)[key] = resultProgress[key];
               }
-            }
+            });
           }
           
           return {
@@ -424,63 +391,33 @@ export const useProgressStore = create<ProgressState>()(
       
       updateCategoryProgress: async (category, value) => {
         await get()._updateProgressAndSync((state) => {
-          // Get current progress for the category
-          let currentProgress;
-          switch (category) {
-            case 'mechanics': 
-              currentProgress = state.progress.mechanicsProgress;
-              break;
-            case 'sequencing': 
-              currentProgress = state.progress.sequencingProgress;
-              break;
-            case 'voice': 
-              currentProgress = state.progress.voiceProgress;
-              break;
-            default:
-              return null;
-          }
+          const currentLevelId = state.progress.currentLevel;
+          
+          // Get current progress for this specific level
+          const currentProgress = state.progress.levelProgress[currentLevelId] || 0;
           
           // Only update if the new value is higher
           if (value <= currentProgress) {
             return null;
           }
           
-          // Update the specific category progress
-          switch (category) {
-            case 'mechanics':
-              return {
-                progress: {
-                  ...state.progress,
-                  mechanicsProgress: value,
-                  lastUpdated: Date.now()
-                }
-              };
-            case 'sequencing':
-              return {
-                progress: {
-                  ...state.progress,
-                  sequencingProgress: value,
-                  lastUpdated: Date.now()
-                }
-              };
-            case 'voice':
-              return {
-                progress: {
-                  ...state.progress,
-                  voiceProgress: value,
-                  lastUpdated: Date.now()
-                }
-              };
-            default:
-              return null;
-          }
+          return {
+            progress: {
+              ...state.progress,
+              levelProgress: {
+                ...state.progress.levelProgress,
+                [currentLevelId]: value
+              },
+              lastUpdated: Date.now()
+            }
+          };
         });
         
         // Log the current progress to help debug progression
-        const { mechanicsProgress, currentLevel } = get().progress;
-        console.log(`Updated ${category} progress to ${value}%`, { 
+        const { levelProgress, currentLevel } = get().progress;
+        console.log(`Updated level ${currentLevel} progress to ${value}%`, { 
           currentLevel,
-          mechanicsProgress
+          levelProgress: levelProgress[currentLevel]
         });
         
         // Check if any new categories or levels should be unlocked

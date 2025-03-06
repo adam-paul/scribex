@@ -294,9 +294,7 @@ class SupabaseService {
       // Merge with existing progress or create new
       const currentProgress = data?.progress_data as UserProgress || {
         currentLevel: 'mechanics-1',
-        mechanicsProgress: 0,
-        sequencingProgress: 0,
-        voiceProgress: 0,
+        levelProgress: { 'mechanics-1': 0 },
         completedLevels: [],
         unlockedLevels: ['mechanics-1'],
         totalScore: 0,

@@ -68,160 +68,77 @@ export default function ExerciseScreen() {
   useEffect(() => {
     const fetchExercises = async () => {
       try {
-        if (typeof id !== 'string') return;
-        
         setIsLoading(true);
         
-        // Get the level details for the AI service
-        const level = LEVELS.find(l => l.id === id);
-        if (!level) throw new Error('Level not found');
+        // Ensure id is a string
+        if (typeof id !== 'string') {
+          Alert.alert('Error', 'Invalid level ID');
+          router.back();
+          return;
+        }
         
-        try {
-          // Check if we have preloaded exercises for this level
-          const lessonStore = useLessonStore.getState();
+        // Get level information
+        const level = LEVELS.find(l => l.id === id);
+        if (!level) {
+          Alert.alert('Error', 'Level not found');
+          router.back();
+          return;
+        }
+        
+        // Get exercises from lesson store
+        const lessonStore = useLessonStore.getState();
+        let exerciseData = lessonStore.createExerciseSetFromCachedExercises(id);
+        
+        // If we don't have enough exercises, start preloading
+        if (!exerciseData || exerciseData.exercises.length < MAX_EXERCISES_PER_LEVEL) {
+          console.log(`Requesting preload of exercises for level ${id}`);
+          // This happens in the background
+          lessonStore.preloadExerciseForLevel(id).catch(err => {
+            console.warn(`Background exercise preload failed: ${err.message}`);
+          });
           
-          let exerciseData = null;
-          
-          if (lessonStore.hasExercisesForLevel(id)) {
-            // Try to create an exercise set from the cached exercises
+          // If we have no exercises at all, we need to wait for at least one
+          if (!exerciseData) {
+            console.log('Waiting for first exercise to be generated...');
+            const exercise = await lessonStore.preloadExerciseForLevel(id);
+            if (!exercise) {
+              throw new Error('Failed to generate initial exercise');
+            }
             exerciseData = lessonStore.createExerciseSetFromCachedExercises(id);
-            
-            if (exerciseData) {
-              console.log(`Using ${exerciseData.exercises.length} preloaded exercises for level ${id}`);
-            } else {
-              console.log(`Cached exercises for ${id} were invalid, generating new ones`);
-              // Clear any invalid exercises to avoid reusing them
-              lessonStore.clearExercisesForLevel(id);
+            if (!exerciseData) {
+              throw new Error('Failed to create exercise set after generating initial exercise');
             }
           }
-          
-          // If we don't have valid cached exercises, generate new ones
-          if (!exerciseData) {
-            console.log(`Generating new exercise set for level ${id}`);
-            
-            // First generate just one exercise to show immediately
-            const firstExercise = await generateAIExerciseWithType(
-              id,
-              level.type,
-              // Choose a topic based on level type
-              (() => {
-                const topicsByType = {
-                  'mechanics': ['grammar', 'punctuation', 'sentence structure', 'parts of speech'],
-                  'sequencing': ['paragraph flow', 'transitions', 'essay organization', 'logical arguments'],
-                  'voice': ['writing style', 'audience awareness', 'descriptive writing', 'rhetoric']
-                };
-                const topics = topicsByType[level.type as keyof typeof topicsByType] || ['writing'];
-                return topics[Math.floor(Math.random() * topics.length)];
-              })(),
-              'multiple-choice',  // Start with multiple choice for first question
-              level.difficulty
-            );
-            
-            // Create initial exercise set with just the first question
-            exerciseData = {
-              id: `set-${id}-${Date.now()}`,
-              levelId: id,
-              title: level.title || `Exercise Set for ${id}`,
-              description: level.description || `Practice exercises for ${level.type}`,
-              exercises: [firstExercise],
-              requiredScore: 90,
-            };
-            
-            // Store first exercise
-            lessonStore.addExerciseToLevel(id, firstExercise);
-            
-            // Generate the rest of the exercises in the background
-            console.log('Generating remaining exercises in the background...');
-            
-            // Define exercise types to cycle through
-            const exerciseTypes = ['multiple-choice', 'fill-in-blank', 'matching', 'reorder'];
-            
-            // Start background generation with a small delay
-            setTimeout(async () => {
-              try {
-                // Generate remaining exercises one at a time to ensure proper state updates
-                for (let i = 0; i < MAX_EXERCISES_PER_LEVEL - 1; i++) {
-                  const exercise = await generateAIExerciseWithType(
-                    id,
-                    level.type,
-                    // Choose a topic based on level type
-                    (() => {
-                      const topicsByType = {
-                        'mechanics': ['grammar', 'punctuation', 'sentence structure', 'parts of speech'],
-                        'sequencing': ['paragraph flow', 'transitions', 'essay organization', 'logical arguments'],
-                        'voice': ['writing style', 'audience awareness', 'descriptive writing', 'rhetoric']
-                      };
-                      const topics = topicsByType[level.type as keyof typeof topicsByType] || ['writing'];
-                      return topics[Math.floor(Math.random() * topics.length)];
-                    })(),
-                    exerciseTypes[(i + 1) % exerciseTypes.length],
-                    level.difficulty
-                  );
-
-                  // Store the exercise
-                  lessonStore.addExerciseToLevel(id, exercise);
-                  
-                  // Add to our pending exercises array
-                  setPendingExercises(prev => [...prev, exercise]);
-
-                  console.log(`Successfully generated exercise ${i + 2} of ${MAX_EXERCISES_PER_LEVEL}`);
-
-                  // Add a small delay between generations to avoid rate limiting
-                  await new Promise(resolve => setTimeout(resolve, 700));
-                }
-              } catch (error) {
-                console.error('Background exercise generation failed:', error);
-                // Continue with what we have if we fail to get more
-              }
-            }, 1000);
-            
-            console.log(`Starting with 1 exercise, more will be added shortly`);
-          }
-          
-          // Set up the exercise state
-          setExerciseSet(exerciseData);
-          
-          // Initialize the first exercise's state if it's a reorder type
-          if (exerciseData.exercises[0]?.type === 'reorder' && exerciseData.exercises[0]?.reorderItems) {
-            // Shuffle the items for the reorder exercise
-            const shuffled = [...exerciseData.exercises[0].reorderItems].sort(() => Math.random() - 0.5);
-            setReorderItems(shuffled);
-          }
-          
-          // Update results state
-          setResults(prev => ({
-            ...prev,
-            setId: exerciseData.id,
-            levelId: id,
-            totalQuestions: MAX_EXERCISES_PER_LEVEL,  // Always set to max from the beginning
-            exercises: Array(MAX_EXERCISES_PER_LEVEL).fill(null).map((_, i) => ({
-              id: i < exerciseData.exercises.length ? exerciseData.exercises[i].id : `pending-${i}`,
-              correct: false,
-              attempts: 0,
-            })),
-          }));
-          
-          // Background-generate more exercises for next time if needed
-          const exerciseCount = lessonStore.getExerciseCount(id);
-          if (exerciseCount < MAX_EXERCISES_PER_LEVEL) {
-            console.log(`Requesting generation of more exercises for future use (current: ${exerciseCount})`);
-            // This happens in the background, we don't await it
-            setTimeout(() => {
-              lessonStore.preloadExerciseForLevel(id).catch(err => {
-                console.warn(`Background exercise generation failed: ${err.message}`);
-              });
-            }, 1000);
-          }
-        } catch (error) {
-          // Handle exercise loading error (no fallback content)
-          console.error('Error loading exercises:', error);
-          throw new Error(`Failed to load exercises: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
+        
+        // Set up the exercise state
+        setExerciseSet(exerciseData);
+        
+        // Initialize the first exercise's state if it's a reorder type
+        if (exerciseData.exercises[0]?.type === 'reorder' && exerciseData.exercises[0]?.reorderItems) {
+          // Shuffle the items for the reorder exercise
+          const shuffled = [...exerciseData.exercises[0].reorderItems].sort(() => Math.random() - 0.5);
+          setReorderItems(shuffled);
+        }
+        
+        // Update results state
+        setResults(prev => ({
+          ...prev,
+          setId: exerciseData.id,
+          levelId: id,
+          totalQuestions: MAX_EXERCISES_PER_LEVEL,
+          exercises: Array(MAX_EXERCISES_PER_LEVEL).fill(null).map((_, i) => ({
+            id: i < exerciseData.exercises.length ? exerciseData.exercises[i].id : `pending-${i}`,
+            correct: false,
+            attempts: 0,
+          })),
+        }));
+        
+        setIsLoading(false);
       } catch (error) {
         console.error('Error fetching exercises:', error);
         Alert.alert('Error', 'Failed to load exercises. Please try again.');
-      } finally {
-        setIsLoading(false);
+        router.back();
       }
     };
 
@@ -314,6 +231,12 @@ export default function ExerciseScreen() {
   };
 
   const handleNext = () => {
+    // Ensure id is a string
+    if (typeof id !== 'string') {
+      console.error('Invalid level ID');
+      return;
+    }
+
     // Update consecutive correct answers count
     const isCorrect = results.exercises[currentExerciseIndex].correct;
     if (isCorrect) {
@@ -327,22 +250,40 @@ export default function ExerciseScreen() {
     
     if (currentExerciseIndex < MAX_EXERCISES_PER_LEVEL - 1) {
       // Check if next exercise is available
-      const nextExercise = exerciseSet.exercises[currentExerciseIndex + 1];
+      const nextExercise = exerciseSet?.exercises[currentExerciseIndex + 1];
       
       if (!nextExercise) {
-        // If we've caught up to generation, show loading
+        // If we've caught up to generation, show loading and wait for next exercise
         setIsLoading(true);
+        
+        // Try to get updated exercise set
+        const lessonStore = useLessonStore.getState();
+        const updatedSet = lessonStore.createExerciseSetFromCachedExercises(id);
+        
+        if (updatedSet && updatedSet.exercises.length > currentExerciseIndex + 1) {
+          // We have the next exercise now
+          setExerciseSet(updatedSet);
+          setCurrentExerciseIndex(prev => prev + 1);
+          setIsLoading(false);
+        } else {
+          // Still waiting for next exercise, keep loading state
+          // The useEffect will update when new exercises are available
+          console.log('Waiting for next exercise to be generated...');
+        }
       } else {
         // Next exercise is ready, proceed normally
         setCurrentExerciseIndex(prev => prev + 1);
-        
-        // Reset state for all exercise types
-        setSelectedChoice(null);
-        setTextAnswer('');
-        setMatchingAnswers(new Map());
-        setReorderItems([]);
-        setShowExplanation(false);
       }
+      
+      // Reset state for all exercise types
+      setSelectedChoice(null);
+      setTextAnswer('');
+      setMatchingAnswers(new Map());
+      setReorderItems(nextExercise?.reorderItems ? 
+        [...nextExercise.reorderItems].sort(() => Math.random() - 0.5) : 
+        []);
+      setShowExplanation(false);
+      
     } else if (allQuestionsAttempted) {
       // All questions have been attempted, complete the exercise set
       finishExerciseSet();

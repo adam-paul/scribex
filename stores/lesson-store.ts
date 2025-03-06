@@ -230,39 +230,33 @@ export const useLessonStore = create<LessonStoreState>()(
       preloadAllLessons: async () => {
         const progressStore = useProgressStore.getState();
         const progress: UserProgress = progressStore.progress;
-        const unlockedLevels = progress.unlockedLevels || [];
+        const currentLevelId = progress.currentLevel;
         
-        console.log('Starting background preloading of exercises...');
+        if (!currentLevelId) {
+          console.log('No current level to preload');
+          return;
+        }
+        
+        console.log(`Preloading exercises for current level: ${currentLevelId}`);
         
         // We'll always use fresh exercises - they're cleared on login in AuthContext
         
-        // Add currently active level first to prioritize it
-        const currentLevelId = progress.currentLevel;
-        const levelIdsToLoad = currentLevelId 
-          ? [currentLevelId, ...unlockedLevels.filter(id => id !== currentLevelId)]
-          : unlockedLevels;
+        // Check how many exercises we already have
+        const existingCount = get().getExerciseCount(currentLevelId);
         
-        console.log(`Levels to preload: ${levelIdsToLoad.join(', ')}`);
-
-        // Generate exercises for each level until we have MAX_EXERCISES_PER_LEVEL
-        for (const levelId of levelIdsToLoad) {
-          // Check how many exercises we already have
-          const existingCount = get().getExerciseCount(levelId);
-          
-          // Generate more exercises if needed
-          const exercisesNeeded = MAX_EXERCISES_PER_LEVEL - existingCount;
-          console.log(`Level ${levelId}: ${existingCount}/${MAX_EXERCISES_PER_LEVEL} exercises available, need ${exercisesNeeded} more`);
-          
-          for (let i = 0; i < exercisesNeeded; i++) {
-            try {
-              console.log(`Generating exercise ${i+1}/${exercisesNeeded} for level ${levelId}`);
-              await get().preloadExerciseForLevel(levelId);
-              // Small delay to avoid rate limiting
-              await new Promise(resolve => setTimeout(resolve, 700));
-            } catch (error) {
-              console.error(`Failed to preload exercise for ${levelId}:`, error);
-              break; // Skip to next level if we encounter an error
-            }
+        // Generate more exercises if needed
+        const exercisesNeeded = MAX_EXERCISES_PER_LEVEL - existingCount;
+        console.log(`Level ${currentLevelId}: ${existingCount}/${MAX_EXERCISES_PER_LEVEL} exercises available, need ${exercisesNeeded} more`);
+        
+        for (let i = 0; i < exercisesNeeded; i++) {
+          try {
+            console.log(`Generating exercise ${i+1}/${exercisesNeeded} for level ${currentLevelId}`);
+            await get().preloadExerciseForLevel(currentLevelId);
+            // Small delay to avoid rate limiting
+            await new Promise(resolve => setTimeout(resolve, 700));
+          } catch (error) {
+            console.error(`Failed to preload exercise for ${currentLevelId}:`, error);
+            break;
           }
         }
         
