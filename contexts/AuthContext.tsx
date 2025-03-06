@@ -59,31 +59,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         useLessonStore.getState().clearAllExercises();
         
         // Load all data in parallel for better performance
-        const [progressData, writingData, userProfile] = await Promise.all([
-          supabaseService.getProgress('AuthContext.loadUserData'),
+        const [writingData, userProfile] = await Promise.all([
           supabaseService.getWritingProjects('AuthContext.loadUserData'),
           supabaseService.getUserProfile('AuthContext.loadUserData')
         ]);
         
-        // Set progress data or reset to default
-        if (progressData) {
-          // Make sure totalXp exists in progressData
-          if (!('totalXp' in progressData)) {
-            console.log('No totalXp field in progress data, initializing to 0');
-            progressData.totalXp = 0;
-          }
-          
-          // If we have a user profile with XP, ensure it's consistent with local data
-          if (userProfile && userProfile.xp !== undefined) {
-            console.log(`Syncing server XP (${userProfile.xp}) with local state`);
-            // Use the server's XP value as the source of truth
-            progressData.totalXp = userProfile.xp;
-          }
-          
-          setProgress(progressData);
-        } else {
-          resetProgress();
-        }
+        // Load progress data using the new method
+        await useProgressStore.getState().loadServerData();
         
         // Set writing projects or empty array
         setProjects(writingData || []);
@@ -109,7 +91,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         console.error('Error loading user data:', error);
       }
     };
-  }, [user, setProgress, resetProgress, setProjects]);
+  }, [user, setProjects]);
 
   // Set up auth state once
   useEffect(() => {

@@ -47,6 +47,7 @@ interface ProgressState {
   progress: UserProgress;
   offlineChanges: boolean;
   lastSyncTime: number | null;
+  isLoading: boolean;  // Add loading state
   
   // Internal helper (prefixed with underscore to indicate it's not meant for external use)
   _updateProgressAndSync: (updateFn: (state: ProgressState) => Partial<ProgressState> | null) => Promise<void>;
@@ -64,6 +65,7 @@ interface ProgressState {
   syncWithServer: () => Promise<boolean>;
   markSynced: () => void;
   updateUserProfileFromProgress: () => Promise<void>;
+  loadServerData: () => Promise<void>;  // Add method to force server data load
   
   // Content Structure & Navigation
   isCategoryUnlocked: (category: ProgressCategory) => boolean;
@@ -96,6 +98,52 @@ export const useProgressStore = create<ProgressState>()(
       progress: initialProgress,
       offlineChanges: false,
       lastSyncTime: null,
+      isLoading: false,  // Initialize loading state
+      
+      // Add new method to load server data
+      loadServerData: async () => {
+        const user = supabaseService.getCurrentUser();
+        if (!user) return;
+        
+        set({ isLoading: true });
+        try {
+          const [progressData, userProfile] = await Promise.all([
+            supabaseService.getProgress('progress-store.loadServerData'),
+            supabaseService.getUserProfile('progress-store.loadServerData')
+          ]);
+          
+          if (progressData) {
+            // Cast progressData to UserProgress type
+            const typedProgressData = progressData as Partial<UserProgress>;
+            
+            // Make sure totalXp exists and is synced with profile
+            if (!('totalXp' in typedProgressData)) {
+              typedProgressData.totalXp = 0;
+            }
+            
+            if (userProfile && userProfile.xp !== undefined) {
+              typedProgressData.totalXp = userProfile.xp;
+            }
+            
+            set((state) => ({
+              progress: { 
+                ...state.progress,
+                ...typedProgressData,
+                lastUpdated: Date.now()
+              },
+              offlineChanges: false,
+              lastSyncTime: Date.now(),
+              isLoading: false
+            }));
+          } else {
+            // If no progress data, just set loading to false
+            set({ isLoading: false });
+          }
+        } catch (error) {
+          console.error('Error loading server data:', error);
+          set({ isLoading: false });
+        }
+      },
       
       // Check if a category is unlocked based on progress in prerequisite category
       isCategoryUnlocked: (category) => {

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, ScrollView, View, ImageBackground } from 'react-native';
+import { StyleSheet, ScrollView, View, ImageBackground, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { useProgressStore } from '@/stores/progress-store';
@@ -11,16 +11,27 @@ import { LevelAnimation } from '@/components/LevelAnimation';
 import { useTheme } from '@/contexts/ThemeContext';
 import { LearningLevel } from '@/types';
 import NetInfo from '@react-native-community/netinfo';
+import { useAuth } from '@/contexts/AuthContext';
 
 export default function MapScreen() {
   const progress = useProgressStore((state) => state.progress);
+  const isLoading = useProgressStore((state) => state.isLoading);
+  const loadServerData = useProgressStore((state) => state.loadServerData);
   const { offlineChanges, syncWithServer } = useProgressStore();
   const { currentTheme } = useTheme();
+  const { isAuthenticated } = useAuth();
   
   const [showAnimation, setShowAnimation] = useState(false);
   const [animationType, setAnimationType] = useState<'complete' | 'unlock' | 'levelUp'>('complete');
   const [animationLevel, setAnimationLevel] = useState<LearningLevel | undefined>(undefined);
   const [isOffline, setIsOffline] = useState(false);
+  
+  // Load data on mount if authenticated
+  useEffect(() => {
+    if (isAuthenticated) {
+      loadServerData();
+    }
+  }, [isAuthenticated, loadServerData]);
   
   // Handle level selection
   const handleLevelPress = (levelId: string) => {
@@ -70,24 +81,30 @@ export default function MapScreen() {
             isOffline={isOffline}
           />
           
-          {LEVELS.map((level) => (
-            <LevelCard
-              key={level.id}
-              level={{
-                ...level,
-                progress: progress.completedLevels.includes(level.id) ? 100 : // If completed, show 100%
-                         progress.levelProgress[level.id] || 0, // Otherwise show level-specific progress
-                isCompleted: progress.completedLevels.includes(level.id),
-                isUnlocked: progress.unlockedLevels.includes(level.id),
-              }}
-              onPress={() => handleLevelPress(level.id)}
-              themeColors={{
-                primary: currentTheme.primaryColor,
-                secondary: currentTheme.secondaryColor,
-                accent: currentTheme.accentColor,
-              }}
-            />
-          ))}
+          {isLoading ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="large" color={colors.primary} />
+            </View>
+          ) : (
+            LEVELS.map((level) => (
+              <LevelCard
+                key={level.id}
+                level={{
+                  ...level,
+                  progress: progress.completedLevels.includes(level.id) ? 100 : // If completed, show 100%
+                           progress.levelProgress[level.id] || 0, // Otherwise show level-specific progress
+                  isCompleted: progress.completedLevels.includes(level.id),
+                  isUnlocked: progress.unlockedLevels.includes(level.id),
+                }}
+                onPress={() => handleLevelPress(level.id)}
+                themeColors={{
+                  primary: currentTheme.primaryColor,
+                  secondary: currentTheme.secondaryColor,
+                  accent: currentTheme.accentColor,
+                }}
+              />
+            ))
+          )}
         </ScrollView>
       </ImageBackground>
       
@@ -117,5 +134,11 @@ const styles = StyleSheet.create({
   content: {
     padding: 16,
     paddingBottom: 100, // Extra padding at bottom for scrolling
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    minHeight: 200,
   },
 });
