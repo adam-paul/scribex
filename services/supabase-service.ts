@@ -2,8 +2,7 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { Platform } from 'react-native';
 import Constants from 'expo-constants';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { UserProgress } from '@/types/learning';
-import { WritingProject } from '@/types/writing';
+import { UserProgress, WritingProject } from '@/types';
 
 // Get environment variables from app.config.js
 const SUPABASE_URL = Constants.expoConfig?.extra?.supabaseUrl;

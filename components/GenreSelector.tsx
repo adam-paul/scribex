@@ -2,7 +2,7 @@ import React from 'react';
 import { StyleSheet, View, Text, ScrollView, TouchableOpacity } from 'react-native';
 import { BookOpen, FileText, Feather, Radio, Mail, Mic, Edit } from 'lucide-react-native';
 import { colors } from '@/constants/colors';
-import { WritingGenre } from '@/types/writing';
+import { WritingGenre } from '@/types';
 
 type GenreOption = {
   value: WritingGenre;

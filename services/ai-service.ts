@@ -3,7 +3,7 @@
  * Integrates with OpenAI API for NLP capabilities
  */
 
-import { Exercise, ExerciseSet } from '@/types/exercises';
+import { Exercise, ExerciseSet, WritingFeedback, WritingScore } from '@/types';
 import { LEVELS } from '@/constants/levels';
 import { MAX_EXERCISES_PER_LEVEL } from '@/constants/exercises';
 import OpenAI from 'openai';
@@ -420,16 +420,6 @@ export async function generateAIExerciseWithType(
   }
 }
 
-// Interface for structured writing feedback
-export interface WritingFeedback {
-  score: number;           // 0-100 quality score
-  grammarIssues: string[]; // List of grammar issues
-  styleComments: string[]; // Comments on writing style
-  strengthsPoints: string[]; // What the writer did well
-  improvementPoints: string[]; // Areas for improvement
-  overallFeedback: string; // Summary feedback
-}
-
 // Function to provide AI feedback on writing
 export async function getWritingFeedback(text: string): Promise<WritingFeedback> {
   // Input validation
@@ -592,17 +582,6 @@ export async function getWritersBlockPrompts(
   }
 }
 
-
-// Interface for detailed writing score
-export interface WritingScore {
-  overall: number; // 0-100 overall quality
-  mechanics: number; // 0-100 grammar, punctuation, etc.
-  organization: number; // 0-100 structure, flow
-  creativity: number; // 0-100 originality, engagement
-  clarity: number; // 0-100 clearly expressed ideas
-  scores: Record<string, number>; // Category-specific scores
-  feedback: string; // Brief feedback message
-}
 
 // Function to score writing quality
 export async function scoreWriting(

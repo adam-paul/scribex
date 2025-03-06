@@ -9,7 +9,7 @@ import { LevelCard } from '@/components/LevelCard';
 import { ProgressHeader } from '@/components/ProgressHeader';
 import { LevelAnimation } from '@/components/LevelAnimation';
 import { useTheme } from '@/contexts/ThemeContext';
-import { LearningLevel } from '@/types/learning';
+import { LearningLevel } from '@/types';
 import NetInfo from '@react-native-community/netinfo';
 
 export default function MapScreen() {
