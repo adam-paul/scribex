@@ -1,7 +1,7 @@
 import React from 'react';
 import { StyleSheet, View, Text, Image, ScrollView, Alert, ActivityIndicator, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Settings, Award, BookOpen, Trophy, LogOut } from 'lucide-react-native';
+import { Settings, BookOpen, Trophy, LogOut } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import { colors } from '@/constants/colors';
 import { Card } from '@/components/Card';
@@ -18,8 +18,7 @@ export default function ProfileScreen() {
   const [userRank, setUserRank] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   
-  const totalScore = useProgressStore(state => state.progress.totalScore);
-  const achievements = useProgressStore(state => state.progress.achievements);
+  const totalXp = useProgressStore(state => state.progress.totalXp);
   const completedLevels = useProgressStore(state => state.progress.completedLevels);
   
   // Load user rank - streamlined to avoid dependency issues
@@ -72,9 +71,8 @@ export default function ProfileScreen() {
   }
   
   const stats = [
-    { icon: BookOpen, label: 'Total Score', value: totalScore.toString() },
+    { icon: BookOpen, label: 'Total XP', value: totalXp.toString() },
     { icon: Trophy, label: 'Levels Completed', value: completedLevels.length.toString() },
-    { icon: Award, label: 'Achievements', value: achievements.length.toString() },
   ];
   
   const handleSignOut = () => {
@@ -100,10 +98,8 @@ export default function ProfileScreen() {
 
   // Get username from profile or email
   const username = user.profile?.username || user.email?.split('@')[0] || 'User';
-  // Get user level from profile or default to 1
+  // Calculate level from progress store's XP
   const userLevel = user.profile?.level || 1;
-  // Get user XP from profile or default to 0
-  const userXP = user.profile?.xp || 0;
   // Get user avatar URL or use a default one
   const avatarUrl = user.profile?.avatar_url || `https://i.pravatar.cc/300?u=${user.id}`;
 
@@ -171,29 +167,10 @@ export default function ProfileScreen() {
 
             <Card style={styles.xpCard}>
               <Text style={styles.sectionTitle}>Experience Points</Text>
-              <Text style={styles.xpValue}>{userXP} XP</Text>
+              <Text style={styles.xpValue}>{totalXp} XP</Text>
               <Text style={styles.xpInfo}>
                 Earn XP by completing levels and writing exercises
               </Text>
-            </Card>
-
-            <Card style={styles.achievementsCard}>
-              <Text style={styles.sectionTitle}>Recent Achievements</Text>
-              <View style={styles.achievementsList}>
-                {achievements.length > 0 ? (
-                  achievements.map((achievement, index) => (
-                    <View key={index} style={styles.achievementItem}>
-                      <Award size={20} color={colors.primary} />
-                      <View style={styles.achievementText}>
-                        <Text style={styles.achievementTitle}>{achievement.title}</Text>
-                        <Text style={styles.achievementDesc}>{achievement.description}</Text>
-                      </View>
-                    </View>
-                  ))
-                ) : (
-                  <Text style={styles.emptyText}>No achievements yet. Keep writing!</Text>
-                )}
-              </View>
             </Card>
           </>
         )}
@@ -250,24 +227,16 @@ const styles = StyleSheet.create({
   },
   rank: {
     fontSize: 14,
-    color: colors.primary,
+    color: colors.textSecondary,
     marginTop: 4,
   },
   signOutContainer: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    justifyContent: 'flex-end',
     gap: 8,
   },
   actionButton: {
-    flex: 1,
-  },
-  signOutButton: {
-    marginLeft: 8,
-  },
-  loginPrompt: {
-    fontSize: 14,
-    color: colors.primary,
-    marginTop: 4,
+    minWidth: 120,
   },
   statsGrid: {
     flexDirection: 'row',
@@ -277,52 +246,23 @@ const styles = StyleSheet.create({
   statCard: {
     flex: 1,
     alignItems: 'center',
-    padding: 12,
+    padding: 16,
   },
   statValue: {
-    fontSize: 20,
+    fontSize: 24,
     fontWeight: 'bold',
     color: colors.text,
     marginVertical: 8,
   },
   statLabel: {
-    fontSize: 12,
+    fontSize: 14,
     color: colors.textSecondary,
-    textAlign: 'center',
-  },
-  achievementsCard: {
-    marginBottom: 24,
   },
   sectionTitle: {
     fontSize: 18,
     fontWeight: '600',
     color: colors.text,
     marginBottom: 16,
-  },
-  achievementsList: {
-    gap: 12,
-  },
-  achievementItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  achievementText: {
-    marginLeft: 12,
-    flex: 1,
-  },
-  achievementTitle: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: colors.text,
-  },
-  achievementDesc: {
-    fontSize: 14,
-    color: colors.textSecondary,
-  },
-  emptyText: {
-    fontSize: 14,
-    color: colors.textSecondary,
-    fontStyle: 'italic',
   },
   xpCard: {
     marginBottom: 24,

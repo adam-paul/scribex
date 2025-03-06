@@ -1,68 +1,15 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import NetInfo from '@react-native-community/netinfo';
-import { UserProgress, Achievement } from '@/types/learning';
+import { UserProgress } from '@/types/learning';
 import { LEVELS } from '@/constants/levels';
 import { createProgressStorage } from '@/services/supabase-storage';
 import supabaseService from '@/services/supabase-service';
 
-// Sample achievements - in a real app, these would come from a server or database
-const ACHIEVEMENTS: Achievement[] = [
-  {
-    id: 'first-story',
-    title: 'First Story',
-    description: 'Completed your first writing project',
-    icon: 'book',
-    unlockedAt: '',
-  },
-  {
-    id: 'mechanics-master',
-    title: 'Mechanics Master',
-    description: 'Completed all mechanics levels',
-    icon: 'award',
-    unlockedAt: '',
-  },
-  {
-    id: 'sequencing-pro',
-    title: 'Sequencing Pro',
-    description: 'Completed all sequencing levels',
-    icon: 'list',
-    unlockedAt: '',
-  },
-  {
-    id: 'voice-virtuoso',
-    title: 'Voice Virtuoso',
-    description: 'Completed all voice levels',
-    icon: 'mic',
-    unlockedAt: '',
-  },
-  {
-    id: 'streak-7',
-    title: 'Weekly Writer',
-    description: 'Maintained a 7-day writing streak',
-    icon: 'calendar',
-    unlockedAt: '',
-  },
-  {
-    id: 'streak-30',
-    title: 'Monthly Maestro',
-    description: 'Maintained a 30-day writing streak',
-    icon: 'star',
-    unlockedAt: '',
-  },
-  {
-    id: 'points-1000',
-    title: 'Point Collector',
-    description: 'Earned 1000 total points',
-    icon: 'trophy',
-    unlockedAt: '',
-  },
-];
-
-// XP constants for level progression
-const XP_PER_LEVEL_COMPLETION = 100;
-const XP_PER_ACHIEVEMENT = 50;
-const XP_PER_POINT = 0.5; // Each point in totalScore gives 0.5 XP
+// XP constants for exercise completion
+const BASE_XP_PER_CORRECT_ANSWER = 20;
+const XP_DIFFICULTY_MULTIPLIER = 10;
+const MAX_STREAK_BONUS = 50; // Cap at 50 bonus XP for streak
 
 // Level thresholds - how much XP needed for each level
 const LEVEL_THRESHOLDS = [
@@ -84,29 +31,13 @@ const LEVEL_THRESHOLDS = [
 ];
 
 // Calculate level from XP
-const calculateLevel = (xp: number): number => {
+const calculateLevelFromXp = (xp: number): number => {
   for (let i = LEVEL_THRESHOLDS.length - 1; i >= 0; i--) {
     if (xp >= LEVEL_THRESHOLDS[i]) {
       return i + 1;
     }
   }
   return 1; // Default to level 1
-};
-
-// Calculate XP from progress
-const calculateXP = (progress: UserProgress): number => {
-  let xp = 0;
-  
-  // XP from completed levels
-  xp += progress.completedLevels.length * XP_PER_LEVEL_COMPLETION;
-  
-  // XP from achievements
-  xp += progress.achievements.length * XP_PER_ACHIEVEMENT;
-  
-  // XP from total score
-  xp += progress.totalScore * XP_PER_POINT;
-  
-  return Math.floor(xp);
 };
 
 // Type for progress category names
@@ -125,12 +56,9 @@ interface ProgressState {
   completeLevel: (levelId: string) => Promise<void>;
   unlockLevel: (levelId: string) => Promise<void>;
   incrementStreak: () => Promise<void>;
-  addPoints: (points: number) => Promise<void>;
+  addXp: (xp: number) => Promise<void>;
   getNextLevel: (currentLevelId: string) => string | null;
   updateCategoryProgress: (category: ProgressCategory, value: number) => Promise<void>;
-  
-  // Achievement System
-  unlockAchievement: (achievementId: string) => Promise<Achievement | null>;
   
   // Sync Management
   syncWithServer: () => Promise<boolean>;
@@ -150,9 +78,8 @@ const initialProgress: UserProgress = {
   levelProgress: { 'mechanics-1': 0 },
   completedLevels: [],
   unlockedLevels: ['mechanics-1'],
-  totalScore: 0,
+  totalXp: 0,
   dailyStreak: 0,
-  achievements: [],
   lastUpdated: Date.now(),
 };
 
@@ -189,13 +116,14 @@ export const useProgressStore = create<ProgressState>()(
       // Check progress and unlock next levels and categories if thresholds are met
       checkAndUnlockNextContent: async () => {
         const { progress } = get();
-        const { levelProgress, unlockedLevels, completedLevels, currentLevel } = progress;
+        const { levelProgress, unlockedLevels, completedLevels, currentLevel, totalXp } = progress;
         
         console.log('Checking content unlocks. Current state:', {
           currentLevel,
           completedLevels,
           unlockedLevels,
-          levelProgress
+          levelProgress,
+          totalXp
         });
         
         // Helper to handle level completion logic
@@ -367,11 +295,11 @@ export const useProgressStore = create<ProgressState>()(
         }));
       },
         
-      addPoints: async (points) => {
+      addXp: async (xp) => {
         await get()._updateProgressAndSync((state) => ({
           progress: {
             ...state.progress,
-            totalScore: state.progress.totalScore + points,
+            totalXp: state.progress.totalXp + xp,
             lastUpdated: Date.now()
           }
         }));
@@ -428,56 +356,41 @@ export const useProgressStore = create<ProgressState>()(
         await get().checkAndUnlockNextContent();
       },
       
-      unlockAchievement: async (achievementId) => {
-        // Check if achievement is already unlocked
-        const { progress } = get();
-        if (progress.achievements.some(a => a.id === achievementId)) {
-          return null;
-        }
-        
-        // Find achievement in available achievements
-        const achievement = ACHIEVEMENTS.find(a => a.id === achievementId);
-        if (!achievement) {
-          console.error(`Achievement ${achievementId} not found`);
-          return null;
-        }
-        
-        // Create unlocked achievement with timestamp
-        const unlockedAchievement: Achievement = {
-          ...achievement,
-          unlockedAt: new Date().toISOString()
-        };
-        
-        // Update state using our helper
-        await get()._updateProgressAndSync((state) => ({
-          progress: {
-            ...state.progress,
-            achievements: [...state.progress.achievements, unlockedAchievement],
-            lastUpdated: Date.now()
-          }
-        }));
-        
-        return unlockedAchievement;
-      },
-      
       updateUserProfileFromProgress: async () => {
         // Check if user is logged in before updating profile
         const user = supabaseService.getCurrentUser();
-        if (!user) return;
+        if (!user) {
+          console.warn('Cannot update profile: No user logged in');
+          return;
+        }
         
         const { progress } = get();
         
-        // Calculate XP based on progress
-        const xp = calculateXP(progress);
+        // Get XP directly from progress, default to 0 if missing
+        const xp = progress.totalXp || 0;
         
-        // Calculate level based on XP
-        const level = calculateLevel(xp);
+        console.log(`Syncing XP with server: ${xp}`);
         
-        // Update user profile with new level and XP
-        await supabaseService.updateUserLevel(level, xp, 'progress-store.updateUserProfileFromProgress');
-        
-        // Refresh user data to get updated profile
-        await supabaseService.refreshUser();
+        try {
+          // Calculate level based on XP
+          const level = calculateLevelFromXp(xp);
+          
+          // Update user profile with new level and XP
+          const success = await supabaseService.updateUserLevel(level, xp, 'progress-store.updateUserProfileFromProgress');
+          
+          if (!success) {
+            console.error('Failed to update user level and XP in database');
+            return;
+          }
+          
+          // Refresh user data to get updated profile
+          await supabaseService.refreshUser();
+          
+          console.log(`Successfully synced XP (${xp}) and level (${level}) to server`);
+        } catch (error) {
+          console.error('Error updating user profile:', error);
+          throw error; // Re-throw to be handled by caller
+        }
       },
       
       syncWithServer: async () => {
@@ -505,13 +418,13 @@ export const useProgressStore = create<ProgressState>()(
             return true; // Still return true to avoid triggering error flows
           }
         
-          // Save progress to server (full sync in this case)
+          // First sync the XP to the user profile
+          await get().updateUserProfileFromProgress();
+          
+          // Then save local progress to server (full sync)
           const success = await supabaseService.saveProgress(progress, 'progress-store.syncWithServer');
           
           if (success) {
-            // Update user profile with new level and XP
-            await get().updateUserProfileFromProgress();
-            
             // Mark as synced
             get().markSynced();
             return true;

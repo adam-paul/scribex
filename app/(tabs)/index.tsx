@@ -65,7 +65,7 @@ export default function MapScreen() {
       >
         <ScrollView contentContainerStyle={styles.content}>
           <ProgressHeader 
-            score={progress.totalScore}
+            xp={progress.totalXp}
             streak={progress.dailyStreak}
             isOffline={isOffline}
           />

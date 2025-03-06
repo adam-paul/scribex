@@ -15,9 +15,8 @@ interface UserProgress {
   levelProgress: { [key: string]: number }; // Progress percentage per level
   completedLevels: string[];         // IDs of all completed levels
   unlockedLevels: string[];          // IDs of all accessible levels
-  totalScore: number;                // Accumulated points from exercises
+  totalXp: number;                   // Accumulated XP from exercises
   dailyStreak: number;               // Consecutive days of app usage
-  achievements: Achievement[];       // Unlocked achievements
   lastUpdated: number;               // Timestamp of last update
 }
 ```
@@ -53,10 +52,11 @@ interface Achievement {
 2. **Level Progression**: Levels follow a prerequisite chain:
    - `mechanics-1` → `mechanics-2` → `sequencing-1` → `voice-1` → etc.
 
-3. **XP System**: Experience points are calculated from:
-   - Completed levels: 100 XP each
-   - Achievements: 50 XP each
-   - Total score: 0.5 XP per point
+3. **XP System**: Experience points are earned from exercise completion:
+   - Base XP: 20 XP per correct answer
+   - Difficulty bonus: Level difficulty * 10
+   - Streak bonus: Up to 50 XP for consecutive correct answers
+   - Total XP = (correct answers * 20) + (difficulty * 10) + min(streak * 10, 50)
 
 4. **User Level**: Determined by XP thresholds (1-15 levels defined)
 
@@ -103,7 +103,7 @@ useEffect(() => {
 }, []);
 
 // After important operations
-await progressStore.addPoints(100);
+await progressStore.addXp(100);
 await progressStore.syncWithServer();
 ```
 
@@ -142,9 +142,9 @@ export const useProgressStore = create<ProgressState>()(
   - Increases daily streak counter by one
   - Called on daily app usage
 
-- `addPoints(points: number): Promise<void>`
-  - Adds to totalScore
-  - Affects XP calculation
+- `addXp(xp: number): Promise<void>`
+  - Adds to totalXp
+  - Affects level calculation
 
 - `getNextLevel(currentLevelId: string): string | null`
   - Returns ID of the next logical level based on prerequisites

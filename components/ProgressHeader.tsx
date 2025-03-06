@@ -4,12 +4,12 @@ import { colors } from '@/constants/colors';
 import { Card } from './Card';
 
 type ProgressHeaderProps = {
-  score: number;
+  xp: number;
   streak: number;
   isOffline?: boolean;
 };
 
-export function ProgressHeader({ score, streak, isOffline = false }: ProgressHeaderProps) {
+export function ProgressHeader({ xp, streak, isOffline = false }: ProgressHeaderProps) {
   return (
     <View style={styles.container}>
       <View style={styles.headerRow}>
@@ -26,8 +26,8 @@ export function ProgressHeader({ score, streak, isOffline = false }: ProgressHea
       <View style={styles.statsContainer}>
         <Card style={styles.statCard}>
           <Trophy size={24} color={colors.primary} />
-          <Text style={styles.statValue}>{score}</Text>
-          <Text style={styles.statLabel}>Points</Text>
+          <Text style={styles.statValue}>{xp}</Text>
+          <Text style={styles.statLabel}>XP</Text>
         </Card>
         
         <Card style={styles.statCard}>

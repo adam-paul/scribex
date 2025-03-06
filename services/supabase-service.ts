@@ -296,7 +296,7 @@ class SupabaseService {
         levelProgress: { 'mechanics-1': 0 },
         completedLevels: [],
         unlockedLevels: ['mechanics-1'],
-        totalScore: 0,
+        totalXp: 0,
         dailyStreak: 0,
         achievements: [],
         lastUpdated: Date.now(),

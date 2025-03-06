@@ -30,6 +30,11 @@ interface LessonStoreState {
   inProgressGenerations: string[];
   lastUpdated: Record<string, number>;
   exerciseGenerationCounts: Record<string, number>;
+  activeGenerationTasks: Record<string, {
+    levelId: string,
+    targetCount: number,
+    startTime: number
+  }>;
   
   // Functions
   addExerciseToLevel: (levelId: string, exercise: Exercise) => void;
@@ -56,6 +61,7 @@ export const useLessonStore = create<LessonStoreState>()(
       inProgressGenerations: [],
       lastUpdated: {},
       exerciseGenerationCounts: {},
+      activeGenerationTasks: {},
 
       addExerciseToLevel: (levelId: string, exercise: Exercise) => {
         set((state) => {
@@ -305,12 +311,30 @@ export const useLessonStore = create<LessonStoreState>()(
 
       // Helper to preload remaining exercises without blocking
       preloadRemainingExercises: (levelId: string, count: number) => {
-        // Run this in the background without awaiting
-        (async () => {
+        // Register this generation task
+        set(state => ({
+          activeGenerationTasks: {
+            ...state.activeGenerationTasks,
+            [levelId]: {
+              levelId,
+              targetCount: count,
+              startTime: Date.now()
+            }
+          }
+        }));
+
+        // Start the background generation process
+        const startGeneration = async () => {
           let generatedCount = 0;
-          const maxRetries = 2;
 
           while (generatedCount < count) {
+            // Check if this task is still active
+            const tasks = get().activeGenerationTasks;
+            if (!tasks[levelId]) {
+              console.log(`Generation task for ${levelId} was cancelled`);
+              break;
+            }
+
             try {
               // Check if we already have enough exercises
               const currentExercises = get().getExercisesForLevel(levelId);
@@ -334,14 +358,31 @@ export const useLessonStore = create<LessonStoreState>()(
                 await new Promise(resolve => setTimeout(resolve, 1000));
               }
             } catch (error) {
-              // Not an error state, just log and continue
               console.log(`Temporary setback generating exercise for ${levelId}, will retry...`);
               await new Promise(resolve => setTimeout(resolve, 500));
             }
           }
-        })();
-        
-        // Return resolved promise since this function doesn't actually wait for completion
+
+          // Remove this task when complete
+          set(state => {
+            const newTasks = { ...state.activeGenerationTasks };
+            delete newTasks[levelId];
+            return { activeGenerationTasks: newTasks };
+          });
+        };
+
+        // Start the generation process without waiting for it
+        startGeneration().catch(error => {
+          console.error(`Error in background generation for ${levelId}:`, error);
+          // Remove the failed task
+          set(state => {
+            const newTasks = { ...state.activeGenerationTasks };
+            delete newTasks[levelId];
+            return { activeGenerationTasks: newTasks };
+          });
+        });
+
+        // Return immediately since this runs in the background
         return Promise.resolve();
       },
 
@@ -357,33 +398,26 @@ export const useLessonStore = create<LessonStoreState>()(
     {
       name: 'scribex-lessons',
       storage: createJSONStorage(() => createLessonStorage()),
-      onRehydrateStorage: () => (state, error) => {
-        if (error) {
-          console.error('Error rehydrating lesson store:', error);
-        } else {
-          console.log('Lesson store successfully rehydrated');
-          
-          // If we detect very old data, clear it automatically
-          if (state && state.lastUpdated) {
-            const now = Date.now();
-            const oldestAllowedData = now - (7 * 24 * 60 * 60 * 1000); // 7 days
-            
-            // Check if any cached exercises are more than 7 days old
-            let hasOldData = false;
-            Object.values(state.lastUpdated).forEach(timestamp => {
-              if (timestamp < oldestAllowedData) {
-                hasOldData = true;
-              }
-            });
-            
-            // If we have old data, clear everything to ensure fresh content
-            if (hasOldData) {
-              console.log('Detected old exercise data, clearing cache');
+      onRehydrateStorage: () => (state) => {
+        if (!state) {
+          console.log('Progress store failed to rehydrate');
+          return;
+        }
+        
+        console.log('Progress store rehydrated successfully');
+        
+        // Resume any active generation tasks that were interrupted
+        if (state.activeGenerationTasks) {
+          Object.values(state.activeGenerationTasks).forEach(task => {
+            const currentCount = (state.exercises[task.levelId] || []).length;
+            const remainingCount = task.targetCount - currentCount;
+            if (remainingCount > 0) {
+              console.log(`Resuming interrupted generation for ${task.levelId}, ${remainingCount} exercises remaining`);
               setTimeout(() => {
-                useLessonStore.getState().clearAllExercises();
-              }, 0);
+                useLessonStore.getState().preloadRemainingExercises(task.levelId, remainingCount);
+              }, 1000);
             }
-          }
+          });
         }
       }
     }

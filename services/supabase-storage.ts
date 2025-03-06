@@ -64,8 +64,7 @@ const extractDataForSync = <T>(storeName: string, value: StorageValue<T>): any =
       return parsedValue.state.progress;
     }
     if (typeof parsedValue === 'object' && 
-        'currentLevel' in parsedValue && 
-        'mechanicsProgress' in parsedValue) {
+        'currentLevel' in parsedValue) {
       return parsedValue;
     }
   } 
@@ -130,14 +129,11 @@ export const createSupabaseStorage = <T>(storeName: string): PersistStorage<T> =
         if (storeName === 'progress') {
           const emptyProgress: UserProgress = {
             currentLevel: 'mechanics-1',
-            mechanicsProgress: 0,
-            sequencingProgress: 0,
-            voiceProgress: 0,
+            levelProgress: { 'mechanics-1': 0 },
             completedLevels: [],
             unlockedLevels: ['mechanics-1'],
-            totalScore: 0,
+            totalXp: 0,
             dailyStreak: 0,
-            achievements: [],
             lastUpdated: Date.now(),
           };
           await supabaseService.saveProgress(emptyProgress);

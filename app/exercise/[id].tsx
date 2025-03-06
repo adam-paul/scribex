@@ -46,7 +46,7 @@ export default function ExerciseScreen() {
   const { 
     completeLevel, 
     unlockLevel, 
-    addPoints, 
+    addXp, 
     getNextLevel,
     updateCategoryProgress 
   } = progressStore;
@@ -97,13 +97,41 @@ export default function ExerciseScreen() {
           const exercisesNeeded = !exerciseData ? MAX_EXERCISES_PER_LEVEL : MAX_EXERCISES_PER_LEVEL - exerciseData.exercises.length;
           console.log(`Need to generate ${exercisesNeeded} exercises for level ${id}`);
           
-          // Start background generation for all needed exercises
+          // Start background generation for remaining exercises
           lessonStore.preloadRemainingExercises(id, exercisesNeeded);
           
           // Keep checking for exercises until we have at least one
-          while (!exerciseData || exerciseData.exercises.length === 0) {
+          let retryCount = 0;
+          const maxRetries = 30; // 30 seconds max wait time
+          
+          while ((!exerciseData || exerciseData.exercises.length === 0) && retryCount < maxRetries) {
             await new Promise(resolve => setTimeout(resolve, 1000)); // Wait a second
             exerciseData = lessonStore.createExerciseSetFromCachedExercises(id);
+            retryCount++;
+            
+            // Update loading message every 5 seconds
+            if (retryCount % 5 === 0) {
+              console.log(`Still waiting for first exercise... (${retryCount}s)`);
+            }
+          }
+          
+          if (!exerciseData || exerciseData.exercises.length === 0) {
+            Alert.alert(
+              'Exercise Generation Issue',
+              'We had trouble generating exercises for this level. Please try again.',
+              [
+                {
+                  text: 'Try Again',
+                  onPress: () => fetchExercises()
+                },
+                {
+                  text: 'Go Back',
+                  onPress: () => router.back(),
+                  style: 'cancel'
+                }
+              ]
+            );
+            return;
           }
         }
         
@@ -163,7 +191,7 @@ export default function ExerciseScreen() {
     resetExerciseState(exercise);
   }, [currentExerciseIndex, exerciseSet]);
 
-  // Add a new effect to continuously check for newly generated exercises when in loading state
+  // Add a new effect to continuously check for newly generated exercises when needed
   useEffect(() => {
     // Only run this effect when we're waiting for the next exercise
     if (!isLoading || typeof id !== 'string' || !exerciseSet) return;
@@ -186,6 +214,7 @@ export default function ExerciseScreen() {
       }
     }, 1000); // Check every second
     
+    // Cleanup interval on unmount or when loading state changes
     return () => clearInterval(checkIntervalId);
   }, [isLoading, id, exerciseSet, currentExerciseIndex]);
 
@@ -356,49 +385,73 @@ export default function ExerciseScreen() {
     }
     
     if (isPassed) {
-      // Calculate bonus points based on difficulty and consecutive correct answers
-      const difficultyBonus = level.difficulty * 5;
-      const streakBonus = Math.min(consecutiveCorrectAnswers, 5) * 5; // Cap at 25 bonus points for streak
-      const totalPoints = (results.correctAnswers * 10) + difficultyBonus + streakBonus;
+      // Calculate bonus XP based on difficulty and consecutive correct answers
+      const difficultyBonus = level.difficulty * 10;
+      const streakBonus = Math.min(consecutiveCorrectAnswers, 5) * 10; // Cap at 50 bonus XP for streak
+      const totalXp = (results.correctAnswers * 20) + difficultyBonus + streakBonus;
       
-      // Add points to the user's score
-      addPoints(totalPoints);
-      
-      // Mark level as completed
-      completeLevel(level.id);
-      
-      // Update category progress - implement adaptive difficulty
-      // If the user got 100%, boost their progress more
-      const progressMultiplier = results.score === 100 ? 1.2 : 1.0;
-      updateCategoryProgress(
-        level.type, 
-        Math.round((level.difficulty / 3) * 100 * progressMultiplier)
-      );
-      
-      // Get next level and unlock it
-      const nextLevelId = getNextLevel(level.id);
-      if (nextLevelId) {
-        unlockLevel(nextLevelId);
-        
-        // Immediately preload just the first exercise for the new level
-        console.log(`Level ${level.id} completed. Preloading first exercise for next level ${nextLevelId}`);
-        const lessonStore = useLessonStore.getState();
-        lessonStore.preloadFirstExerciseIfNeeded(nextLevelId).catch(err => {
-          console.warn(`Could not preload first exercise for next level: ${err.message}`);
-        });
-      }
-      
-      // Show success message with bonus points breakdown
+      // Show success message with XP breakdown immediately
       Alert.alert(
         'Level Completed!',
         `You scored ${Math.round(results.score)}%!\n` +
-        `Base points: ${results.correctAnswers * 10}\n` +
+        `Base XP: ${results.correctAnswers * 20}\n` +
         `Difficulty bonus: ${difficultyBonus}\n` +
         `Streak bonus: ${streakBonus}\n` +
-        `Total points: ${totalPoints}\n\n` +
+        `Total XP: ${totalXp}\n\n` +
         `You've unlocked the next level!`,
-        [{ text: 'Continue', onPress: () => router.replace('/(tabs)') }]
+        [{ 
+          text: 'Continue', 
+          onPress: () => {
+            // Navigate away immediately
+            router.replace('/(tabs)');
+          }
+        }]
       );
+      
+      // Handle all storage operations asynchronously
+      (async () => {
+        try {
+          // Add XP and wait for it to be stored
+          await addXp(totalXp);
+          
+          // Mark level as completed
+          await completeLevel(level.id);
+          
+          // Update category progress - implement adaptive difficulty
+          // If the user got 100%, boost their progress more
+          const progressMultiplier = results.score === 100 ? 1.2 : 1.0;
+          await updateCategoryProgress(
+            level.type, 
+            Math.round((level.difficulty / 3) * 100 * progressMultiplier)
+          );
+          
+          // Get next level and unlock it
+          const nextLevelId = getNextLevel(level.id);
+          if (nextLevelId) {
+            await unlockLevel(nextLevelId);
+            
+            // Immediately preload just the first exercise for the next level
+            console.log(`Level ${level.id} completed. Preloading first exercise for next level ${nextLevelId}`);
+            const lessonStore = useLessonStore.getState();
+            lessonStore.preloadFirstExerciseIfNeeded(nextLevelId).catch(err => {
+              console.warn(`Could not preload first exercise for next level: ${err.message}`);
+            });
+          }
+
+          // Now that all updates are complete, sync with server
+          const progressStore = useProgressStore.getState();
+          await progressStore.updateUserProfileFromProgress();
+          await progressStore.syncWithServer();
+          
+          console.log('Successfully saved all progress in background');
+        } catch (error) {
+          console.error('Error saving progress in background:', error);
+          // Since we've already navigated away, we'll just log the error
+          // The next time the user loads their profile or starts a new level,
+          // the sync process will attempt to reconcile any missed updates
+        }
+      })();
+      
     } else {
       // Show failure message emphasizing the 90% requirement
       Alert.alert(
