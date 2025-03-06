@@ -2,6 +2,7 @@ import React, { createContext, useState, useEffect, useContext, ReactNode, useMe
 import supabaseService, { SupabaseUser, UserProfile } from '@/services/supabase-service';
 import { useProgressStore } from '@/stores/progress-store';
 import { useWritingStore } from '@/stores/writing-store';
+import { useLessonStore } from '@/stores/lesson-store';
 
 // Extend Window interface to include our custom property
 declare global {
@@ -78,6 +79,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           }, 'AuthContext.loadUserData.createProfile');
           await supabaseService.refreshUser();
         }
+        
+        // Start preloading lessons in background
+        setTimeout(() => {
+          useLessonStore.getState().preloadAllLessons().catch(err => {
+            console.warn('Background lesson preloading failed:', err);
+          });
+        }, 2000); // Slight delay to prioritize UI loading
       } catch (error) {
         console.error('Error loading user data:', error);
       }

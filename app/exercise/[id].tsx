@@ -6,8 +6,25 @@ import { AlertCircle, Move } from 'lucide-react-native';
 import { colors } from '@/constants/colors';
 import { Button } from '@/components/Button';
 import { Card } from '@/components/Card';
-import { Choice, ExerciseSet, ExerciseSetResults } from '@/types/exercises';
+import { Choice, ExerciseSet } from '@/types/exercises';
+
+// Define the interface locally since it doesn't match the one in types
+interface ExerciseSetResults {
+  setId: string;
+  levelId: string;
+  totalQuestions: number;
+  correctAnswers: number;
+  scorePercentage: number;
+  completed: boolean;
+  passedThreshold: boolean;
+  exercises: Array<{
+    id: string;
+    correct: boolean;
+    attempts: number;
+  }>;
+}
 import { useProgressStore } from '@/stores/progress-store';
+import { useLessonStore } from '@/stores/lesson-store';
 import { generateExerciseSet } from '@/services/ai-service';
 import { LEVELS } from '@/constants/levels';
 
@@ -55,12 +72,32 @@ export default function ExerciseScreen() {
         const level = LEVELS.find(l => l.id === id);
         if (!level) throw new Error('Level not found');
         
-        // Generate exercises using the AI service
-        const exerciseData = await generateExerciseSet({
-          levelId: id,
-          type: level.type,
-          difficulty: level.difficulty,
-        });
+        // First try to get preloaded lesson from the store
+        const lessonStore = useLessonStore.getState();
+        let exerciseData: ExerciseSet | null = null;
+        
+        if (lessonStore.hasLessonForLevel(id)) {
+          // Use the cached lesson if available
+          exerciseData = lessonStore.getLessonForLevel(id);
+          console.log(`Using preloaded lesson for level ${id}`);
+        } else {
+          // Generate exercises using the AI service if not preloaded
+          console.log(`No preloaded lesson found for level ${id}, generating now`);
+          exerciseData = await generateExerciseSet({
+            levelId: id,
+            type: level.type,
+            difficulty: level.difficulty,
+          });
+          
+          // Store the newly generated lesson
+          if (exerciseData) {
+            lessonStore.setLessonForLevel(id, exerciseData);
+          }
+        }
+        
+        if (!exerciseData) {
+          throw new Error('Failed to load or generate exercises');
+        }
         
         setExerciseSet(exerciseData);
         
@@ -264,6 +301,13 @@ export default function ExerciseScreen() {
       const nextLevelId = getNextLevel(level.id);
       if (nextLevelId) {
         unlockLevel(nextLevelId);
+        
+        // Start preloading the next level in background
+        setTimeout(() => {
+          useLessonStore.getState().preloadLesson(nextLevelId).catch(err => {
+            console.warn(`Background lesson preloading failed for level ${nextLevelId}:`, err);
+          });
+        }, 500);
       }
       
       // Show success message with bonus points breakdown
