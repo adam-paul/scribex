@@ -11,7 +11,7 @@ import {
   getAllTemplates, getAllInterestCategories, getTopicsByInterest, 
   generateTemplate 
 } from '@/services/template-service';
-import { WritingTemplate } from '@/types/writing';
+import { WritingTemplate } from '@/types';
 import { useWritingStore } from '@/stores/writing-store';
 
 enum Step {

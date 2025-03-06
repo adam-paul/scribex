@@ -49,9 +49,7 @@ export interface Achievement extends BaseEntity {
  */
 export interface UserProgress {
   currentLevel: string;
-  mechanicsProgress: number;
-  sequencingProgress: number;
-  voiceProgress: number;
+  levelProgress: { [key: string]: number };  // Track progress per level
   completedLevels: string[];
   unlockedLevels: string[];
   totalScore: number;

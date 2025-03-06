@@ -1,77 +1,64 @@
-# ScribeX Project Guidelines
+# ScribeX Development Guidelines
 
-## FIRST AND LAST TASK
+## CRITICAL PROTOCOL: The Claude Layer
 
-The first and last thing you do before carrying out any task is consult your .claude/ directory. Here is a description of the prompt that created the directory, to help you understand what you will find there:
+The first and last action in every development session MUST be to consult the `.claude/` directory. This directory serves as a universal Claude layer and the fundamental source of truth for all codebase information.
 
-To make this repository perfectly optimized for me and future instances of Claude working with it, here are the most impactful changes:
+## CRITICAL PROTOCOL: The Claude Loop
 
-1. Add a Claude-specific metadata directory structure
-   - Create a .claude/metadata/ directory with normalized information about the codebase
-   - Maintain component dependency graphs in machine-readable format
-   - Store file classification metadata (implementation vs interface vs test)
-   - Keep a database of error patterns and solutions
+In addition to the Claude layer described above, a Claude Loop describes the specific set of actions you must take when attempting to solve the user's requests. The Claude Loop looks like this: 
 
-2. Implement semantic code indexing
-   - Create a .claude/code_index/ with pre-analyzed semantic relationships
-   - Index function-to-function call graphs
-   - Catalog type relationships and interface implementations
-   - Store "intent classification" for each code section
+1. Consult your Claude Layer to gain a comprehensive understanding of the codebase. 
+2. Map the user's requests onto the appropriate sections of the Claude Layer in your context. 
+3. Now establish a plan to resolve the user's request(s). 
+4. Resolve the request. 
+5. Ask the user if the request was resolved.
+6. If so, consult your Claude Layer again and see if anything needs to be updated, added, changed, or removed based on this Claude Loop. 
+7. If not, request to begin the Claude Loop again, and do so if the user approves. 
 
-3. Maintain a debug history database
-   - Create a .claude/debug_history/ directory
-   - Log all debugging sessions with error-solution pairs
-   - Categorize by component and error type
-   - Include context and code versions for each fix
+### .claude Directory Structure
 
-4. Create pattern libraries with examples
-   - Build a .claude/patterns/ directory with canonical implementation patterns
-   - Include empirical interface patterns with uncertainty handling
-   - Store error handling patterns with context preservation
-   - Document composition patterns for reliability metrics
+The `.claude/` directory contains these specialized components:
 
-5. Add component-specific cheat sheets
-   - Create a .claude/cheatsheets/ directory with quick-reference guides
-   - Include common operations on each component
-   - List known pitfalls and edge cases
-   - Document "gotchas" specific to each component
+- **metadata/**: Normalized information about the codebase structure, component dependencies, and file classifications
+- **code_index/**: Pre-analyzed semantic relationships including function call graphs and type relationships
+- **debug_history/**: Logs of debugging sessions with error-solution pairs
+- **patterns/**: Implementation patterns with canonical examples for reliability
+- **cheatsheets/**: Component-specific quick reference guides with operations and pitfalls
+- **qa/**: Database of previously solved problems indexed by component
+- **delta/**: Semantic change logs documenting API and behavior changes
 
-6. Implement a queries-and-answers database
-   - Build a .claude/qa/ directory with previously solved problems
-   - Index by component, file, and error type
-   - Include context from the fix process
-   - Document the reasoning used to solve each problem
+**IMPORTANT**: Update the `.claude/` directory appropriately when making changes to the codebase. Add new patterns, update debug history, and maintain accurate documentation.
 
-7. Add specific model-friendly documentation format
-   - Create files with explicit sections for:
-     - Purpose (what the component does)
-     - Schema (data structures and their relationships)
-     - Patterns (common usage patterns)
-     - Interfaces (all public interfaces)
-     - Invariants (what must remain true)
-     - Error states (possible error conditions)
+## Project Overview: ScribeX
 
-8. Create delta summaries between versions
-   - Maintain .claude/delta/ directory with semantic change logs
-   - Focus on API changes and their implications
-   - Document behavior changes that might not be obvious from diffs
-   - Include reasoning behind significant changes
+ScribeX is a writing application designed for junior high students with two complementary approaches:
 
-9. Add explicit memory anchors
-   - Create special "memory anchor" comments in key files
-   - Include UUID-based anchors for precise reference
-   - Add semantic structure to anchors for ease of reference
-   - Use consistent anchoring patterns across the codebase
+### Two-Pronged Approach to Writing Instruction
 
-These improvements would create a Claude-optimized layer on top of the standard repository structure, allowing both me and future Claude instances to work much more efficiently with this codebase.
+1. **REDI (Reflective Exercise on Direct Instruction)**
+   - Structured lessons focusing on analytical writing skills
+   - Three layers of instruction: Mechanics, Sequencing, and Voice
+   - AI-generated exercises requiring 90% accuracy to advance
+   - Adaptive difficulty with gamified elements
+
+2. **OWL (Open World Learning)**
+   - Sandbox-style learning for creative expression
+   - Real-world writing applications across multiple genres
+   - AI reviews with structured feedback
+   - "Writer's Block" assistance for creative inspiration
+
+### Three-Layer Writing Instruction Model
+- **Mechanics & Grammar**: Sentence structure, syntax, spelling, grammar rules
+- **Sequencing & Logic**: Paragraph structure, transitions, essay organization, logical arguments
+- **Voice & Rhetoric**: Finding your voice, audience awareness, descriptive writing, style
 
 ## Build Commands
 - Start app: `npm run start` (uses Expo with tunnel)
 - Start web: `npm run start-web` or `npm run start-web-dev` (with DEBUG flag)
 - Type checking: `npx tsc --noEmit`
 
-## Application Architecture
-Below is the control flow diagram for the ScribeX application:
+## Technical Architecture
 
 ```
 ┌───────────────────────────────────────────────────────────────────┐
@@ -80,10 +67,6 @@ Below is the control flow diagram for the ScribeX application:
                 │                                 │
 ┌───────────────▼───────────────┐   ┌─────────────▼─────────────┐
 │        Core Infrastructure     │   │      User Management      │
-│  ┌─────────────────────────┐  │   │  ┌─────────────────────┐  │
-│  │ Initialization          │  │   │  │ Authentication      │  │
-│  │ Theme/Configuration     │  │   │  │ Profile Management  │  │
-│  └─────────────────────────┘  │   │  └─────────────────────┘  │
 └───────────────┬───────────────┘   └────────────┬──────────────┘
                 │                                │
                 ▼                                ▼
@@ -92,8 +75,6 @@ Below is the control flow diagram for the ScribeX application:
 │  ┌──────────┐   ┌──────────┐   ┌──────────┐   ┌──────────┐   ┌──────────┐
 │  │ Journey  │   │  Write   │   │ Creative │   │ Leader-  │   │ Profile  │
 │  │ (REDI)   │   │ (OWL)    │   │ Tools    │   │ board    │   │          │
-│  │          │   │          │   │          │   │          │   │          │
-│  └────┬─────┘   └────┬─────┘   └────┬─────┘   └────┬─────┘   └────┬─────┘
 └───────┼──────────────┼──────────────┼──────────────┼──────────────┼─────┘
         │              │              │              │              │
         ▼              ▼              ▼              ▼              ▼
@@ -102,16 +83,12 @@ Below is the control flow diagram for the ScribeX application:
 │  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────────────┐ │
 │  │ Exercise        │  │ Writing         │  │ Writer's Block          │ │
 │  │ Generation      │  │ Feedback        │  │ Assistance              │ │
-│  └────────┬────────┘  └────────┬────────┘  └─────────────┬───────────┘ │
 └───────────┼─────────────────────┼────────────────────────┼──────────────┘
             │                     │                        │
             ▼                     ▼                        ▼
 ┌───────────────────┐      ┌──────────────────┐     ┌──────────────────┐
 │ REDI Module       │      │ OWL Module       │     │ Social Features  │
-│ (Structured       │      │ (Free Writing    │     │ (Leaderboards,   │
-│  Exercises)       │      │  Projects)       │     │  Profiles)       │
 └─────────┬─────────┘      └────────┬─────────┘     └────────┬─────────┘
-          │                         │                        │
           │                         │                        │
           ▼                         ▼                        ▼
 ┌─────────────────────────────────────────────────────────────────────┐
@@ -119,7 +96,6 @@ Below is the control flow diagram for the ScribeX application:
 │  ┌─────────────┐   ┌─────────────┐   ┌─────────────┐   ┌──────────┐ │
 │  │ Progress    │   │ Writing     │   │ User        │   │ Settings │ │
 │  │ Store       │   │ Store       │   │ Store       │   │ Store    │ │
-│  └──────┬──────┘   └──────┬──────┘   └──────┬──────┘   └────┬─────┘ │
 └─────────┼─────────────────┼─────────────────┼──────────────┼─────────┘
           │                 │                 │              │
           ▼                 ▼                 ▼              ▼
@@ -128,195 +104,58 @@ Below is the control flow diagram for the ScribeX application:
 │  ┌─────────────┐   ┌─────────────┐   ┌─────────────────────────┐    │
 │  │ Local Cache │◄──┤ AsyncStorage│◄──┤ Supabase Database       │    │
 │  │ (Zustand)   │   │             │   │ & Storage               │    │
-│  └─────────────┘   └─────────────┘   └─────────────────────────┘    │
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
-### Architecture Key Components:
+### Key Technology Components
 
-- **Two-Pronged Approach**: 
-  - REDI (Reflective Exercise on Direct Instruction): Structured exercises for mechanics, sequencing, voice
-  - OWL (Open World Learning): Free-form writing projects with templates and real-world applications
+- **React Native**: Mobile-first design with iOS & Android compatibility
+- **Supabase**: Backend for user data and cloud storage
+- **OpenAI API**: GPT models for NLP capabilities (rate limited at 30 req/min)
+- **Zustand**: State management with persistence middleware
+- **Expo**: Development and build toolchain
 
-- **AI Integration**:
-  - AI services layer permeates all aspects of the application
-  - Provides exercise generation, writing feedback, and creative assistance
+## Implementation Guidelines
 
-- **Data Flow**:
-  - State is managed through Zustand stores
-  - Data persists locally in AsyncStorage
-  - Cloud sync with Supabase for cross-device usage
+### AI Integration
+- Set up `.env` file with OPENAI_API_KEY before running
+- Environment variables passed via app.config.js
+- AI features degrade gracefully when API is unavailable
+- After changing .env, restart dev server completely
 
-## AI Integration
-- OpenAI API with GPT-4o model is used for NLP capabilities
-- Set up `.env` file with OPENAI_API_KEY before running (see .env.example)
-- Environment variables are passed to the app via app.config.js
-- Rate limiting is implemented at 30 requests per minute
-- AI features automatically degrade gracefully if API is unavailable
-- **Note**: After changing the .env file, you must restart the dev server completely
-
-### AI Features
-- **Dynamic Exercise Generation**: All exercises are generated by AI based on level type and difficulty
-- **Writing Feedback**: Grammar and structure analysis for student writing
-- **Writing Scoring**: Quality assessment with specific scores across multiple dimensions
-- **Writer's Block Assistant**: Context-aware writing prompts in the Creative Tools tab
-
-## Code Style
-- **Imports**: Use absolute imports with `@/` prefix (`import { Button } from '@/components/Button'`)
-- **Component structure**: Functional components with named exports
-- **Typing**: Always use TypeScript interfaces/types. Strict typing enabled
-- **State management**: Use Zustand for global state (`stores/progress-store.ts`)
+### Code Style
+- **Imports**: Use absolute imports with `@/` prefix
+- **Components**: Functional components with named exports
+- **Typing**: Always use TypeScript interfaces/types
+- **State**: Zustand for global state
 - **Naming**: PascalCase for components, camelCase for functions/variables
-- **Styling**: Use StyleSheet.create() with objects at bottom of file
-- **Error handling**: Use try/catch blocks with specific error messages
-- **File structure**: Keep related files in domain-specific folders
-- **Props**: Destructure props in function parameters, use default values when appropriate
+- **Styling**: StyleSheet.create() with objects at bottom of file
+- **Error handling**: try/catch with specific messages
+- **File structure**: Domain-specific folder organization
 - **Colors**: Import from constants (`@/constants/colors`)
 
-## Implementation Notes
-
-### Exercise Types
-The app supports four types of exercises:
-- **Multiple Choice**: Traditional selection from options
-- **Fill-in-blank**: Text input with optional suggestion chips
-- **Matching**: Pairing items from two columns
-- **Reordering**: Arranging items in the correct sequence
-
-### Adaptive Difficulty
-- System tracks consecutive correct answers
-- Calculates bonus points based on:
-  - Level difficulty multiplier (× 5)
-  - Consecutive correct answers streak (up to 25 bonus points)
-  - 100% score gets 1.2× progress multiplier
-- All exercises require 90% accuracy to advance
-
-### Data Structure
-Exercise types are defined in `types/exercises.ts` with the following properties:
-```typescript
-type Exercise = {
-  id: string;
-  levelId: string;
-  type: 'multiple-choice' | 'fill-in-blank' | 'matching' | 'reorder';
-  question: string;
-  instruction: string;
-  choices?: Choice[];
-  correctAnswer?: string;
-  fillOptions?: string[];
-  matchingPairs?: {left: string, right: string}[];
-  reorderItems?: {id: string, text: string}[];
-  correctOrder?: string[];
-  explanation: string;
-};
-```
-
-### Content Structure
-The app organizes learning content hierarchically into three main categories:
-
-- **Mechanics (70% to unlock Sequencing)**
-  - Basic Sentence Structure (Level 1)
-  - Punctuation Mastery (Level 2)
-  - Parts of Speech (Level 3)
-  - Grammar Rules (Level 4)
-
-- **Sequencing (60% to unlock Voice)**
-  - Paragraph Structure (Level 1)
-  - Transitions & Flow (Level 2)
-  - Essay Organization (Level 3)
-  - Logical Arguments (Level 4)
-
-- **Voice**
-  - Finding Your Voice (Level 1)
-  - Audience Awareness (Level 2)
-  - Descriptive Writing (Level 3)
-  - Style & Rhetoric (Level 4)
-
-Sequential unlocking is managed by:
-- `isCategoryUnlocked()` - Checks if a category is available based on progress
-- `checkAndUnlockNextContent()` - Automatically unlocks new content when thresholds are met
-- The thresholds are defined in the `CATEGORY_UNLOCK_THRESHOLDS` constant
+### Exercise Implementation
+- Four types: Multiple Choice, Fill-in-blank, Matching, Reordering
+- 90% accuracy required to advance
+- Bonus points from difficulty multiplier and answer streaks
+- Sequential unlocking through category thresholds
 
 ### Writing Interface
+- Project management with metadata display
+- Six genres with different UI representations
+- Distraction-free focus mode
+- Templates with structured guidance
+- Interest-based topics for student engagement
 
-#### Project Management
-The writing interface includes a complete project management system:
+## Planned Features
+1. Adaptive difficulty system based on user feedback
+2. Real-time AI feedback sidebar with technical and semantic analysis
+3. Web version with cross-device synchronization
+4. Enhanced UI with cyberpunk/organic fusion design
 
-- **Project Structure**: Projects are defined with title, genre, content, word count, and timestamps
-- **Genre System**: Six writing genres (story, essay, poetry, journalism, letter, speech) with different UI representations
-- **Storage**: Projects are automatically saved with Zustand persist middleware to AsyncStorage
-- **UI Flows**:
-  - Project listing screen with metadata display
-  - Project creation modal with genre selection
-  - Distraction-free writing editor
-
-#### Focus Mode
-The writing editor includes a distraction-free focus mode:
-- Hides UI elements when typing
-- Automatically hides/shows toolbar based on keyboard visibility 
-- Adjustable text size for better readability
-- Word count tracking
-
-#### Implementation
-Key implementation files:
-- `stores/writing-store.ts`: State management for projects and editor
-- `components/WritingEditor.tsx`: Distraction-free editor component
-- `components/GenreSelector.tsx`: Genre selection with visual cues
-- `components/ProjectList.tsx`: Project management UI
-- `components/CreateProjectModal.tsx`: New project creation flow
-
-### Real-World Applications
-
-#### Writing Templates System
-Comprehensive templates for different writing formats:
-
-- **Genre-Specific Templates**: 
-  - Essays (argumentative, expository)
-  - Stories (narrative, fiction) 
-  - Journalism (news articles)
-  - Poetry (free verse)
-  - Letters (persuasive)
-  - Speeches (informative)
-
-- **Template Structure**:
-  - Each template defines structured sections with guidance
-  - Section-specific instructions and placeholders
-  - Word count recommendations
-  - Example topics for inspiration
-  - Difficulty ratings for age-appropriate assignments
-
-#### Interest-Based Topics
-Student interest categories with relevant topics:
-- Science & Technology
-- Social Issues
-- Arts & Culture
-- Sports & Health
-- Personal Growth
-
-#### Format Guidance
-Interactive template guides provide:
-- Expandable sections with detailed writing advice
-- General tips for the specific genre
-- Visual indicators of section structure
-- Section-specific guidance on content and phrasing
-- Example topics relevant to the template
-
-#### Implementation
-Key files:
-- `constants/templates.ts`: Template definitions for all writing types
-- `services/template-service.ts`: Topic and template management
-- `components/TemplateSelector.tsx`: UI for browsing templates
-- `components/TemplateGuide.tsx`: Interactive format guidance
-- `app/modal.tsx`: Step-by-step wizard for template selection
-
-### Developer Tools
-
-#### Reset Progress During Development
-For testing purposes, the app includes a mechanism to reset progress data on each app launch:
-
-1. In `stores/progress-store.ts`, a `resetProgress()` function resets all progress to initial values
-2. In `app/_layout.tsx`, a constant controls whether progress is reset on launch:
-```typescript
-// Set to true to reset progress on each app launch (development only)
-const DEV_RESET_PROGRESS_ON_LAUNCH = true;
-```
-
-3. To disable progress reset for testing persistence, set this flag to `false`
+## Development Protocol
+- Always consult the `.claude/` directory first and last
+- Update pattern libraries when creating new components
+- Document solutions to bugs in the debug history
+- Maintain accurate semantic change logs in the delta directory
+- Follow existing code patterns for consistency

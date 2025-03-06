@@ -3,8 +3,9 @@
  * Integrates with OpenAI API for NLP capabilities
  */
 
-import { Exercise, ExerciseSet } from '@/types/exercises';
+import { Exercise, ExerciseSet, WritingFeedback, WritingScore } from '@/types';
 import { LEVELS } from '@/constants/levels';
+import { MAX_EXERCISES_PER_LEVEL } from '@/constants/exercises';
 import OpenAI from 'openai';
 
 // Import Constants from Expo
@@ -76,84 +77,9 @@ type AIRequestOptions = {
   count?: number;
 };
 
-// Function to generate an exercise based on the level and topic
-export async function generateExercise(levelId: string, topic: string): Promise<Exercise> {
-  try {
-    // Ensure AI is properly configured
-    validateAiAccess();
-    
-    // Check rate limiting
-    await checkRateLimit('generateExercise');
-    
-    // Get level information for context
-    const level = LEVELS.find(l => l.id === levelId);
-    if (!level) {
-      throw new Error(`Level not found: ${levelId}`);
-    }
-    
-    const levelType = level.type;
-    
-    // Create prompt based on level type and topic
-    const prompt = `Create a multiple-choice exercise about ${topic} for students 
-    learning writing skills related to ${levelType}. 
-    Include a question, 4 answer choices (with one correct), and an explanation.
-    Format as JSON with these fields: question, instruction, choices (array with id, text, isCorrect, explanation), explanation.`;
-    
-    // Call OpenAI API
-    const response = await openai.chat.completions.create({
-      model: "gpt-4o",
-      messages: [
-        {
-          role: "system",
-          content: "You are an educational assistant creating writing exercises for students. Format your response as valid JSON."
-        },
-        {
-          role: "user",
-          content: prompt
-        }
-      ],
-      temperature: 0.7,
-      max_tokens: 800,
-      response_format: { type: "json_object" }
-    });
-    
-    // Parse response
-    const content = response.choices[0]?.message?.content;
-    if (!content) {
-      throw new Error('Empty response from OpenAI API');
-    }
-    
-    const exerciseData = JSON.parse(content);
-    if (!exerciseData.question || !exerciseData.choices) {
-      throw new Error('Incomplete exercise data from API');
-    }
-    
-    // Format response into our Exercise type
-    return {
-      id: `generated-${Date.now()}`,
-      levelId: levelId,
-      type: 'multiple-choice',
-      question: exerciseData.question,
-      instruction: exerciseData.instruction,
-      choices: exerciseData.choices.map((choice: any, index: number) => ({
-        id: (index + 1).toString(),
-        text: choice.text,
-        isCorrect: choice.isCorrect,
-        explanation: choice.explanation,
-      })),
-      explanation: exerciseData.explanation,
-    };
-  } catch (error) {
-    console.error('Error generating exercise:', error);
-    throw new Error(`Failed to generate exercise: ${error instanceof Error ? error.message : 'Unknown error'}`);
-  }
-}
-
-// Fallback functions have been completely removed
-
 // Function to generate a complete exercise set with more structured options
 export async function generateExerciseSet(options: AIRequestOptions): Promise<ExerciseSet> {
-  const { levelId, count = 5 } = options; // Default to 5 exercises per set (same as MAX_EXERCISES_PER_LEVEL)
+  const { levelId, count = MAX_EXERCISES_PER_LEVEL } = options; // Default to MAX_EXERCISES_PER_LEVEL
   
   try {
     // Ensure AI is properly configured
@@ -421,18 +347,6 @@ export async function generateAIExerciseWithType(
   }
 }
 
-
-
-// Interface for structured writing feedback
-export interface WritingFeedback {
-  score: number;           // 0-100 quality score
-  grammarIssues: string[]; // List of grammar issues
-  styleComments: string[]; // Comments on writing style
-  strengthsPoints: string[]; // What the writer did well
-  improvementPoints: string[]; // Areas for improvement
-  overallFeedback: string; // Summary feedback
-}
-
 // Function to provide AI feedback on writing
 export async function getWritingFeedback(text: string): Promise<WritingFeedback> {
   // Input validation
@@ -452,9 +366,7 @@ export async function getWritingFeedback(text: string): Promise<WritingFeedback>
   
   try {
     // Check rate limit
-    if (!(await checkRateLimit('getWritingFeedback'))) {
-      throw new Error('Rate limit exceeded. Please try again later.');
-    }
+    await checkRateLimit('getWritingFeedback');
     
     // Truncate text if it's too long for the API
     const truncatedText = text.length > 4000 ? text.substring(0, 4000) + '...' : text;
@@ -519,9 +431,7 @@ export async function getWritersBlockPrompts(
 
   try {
     // Check rate limit
-    if (!(await checkRateLimit('getWritersBlockPrompts'))) {
-      throw new Error('Rate limit exceeded. Please try again later.');
-    }
+    await checkRateLimit('getWritersBlockPrompts');
     
     // Even with no context, we should still generate AI prompts
     if (!context || Object.keys(context).length === 0) {
@@ -600,17 +510,6 @@ export async function getWritersBlockPrompts(
 }
 
 
-// Interface for detailed writing score
-export interface WritingScore {
-  overall: number; // 0-100 overall quality
-  mechanics: number; // 0-100 grammar, punctuation, etc.
-  organization: number; // 0-100 structure, flow
-  creativity: number; // 0-100 originality, engagement
-  clarity: number; // 0-100 clearly expressed ideas
-  scores: Record<string, number>; // Category-specific scores
-  feedback: string; // Brief feedback message
-}
-
 // Function to score writing quality
 export async function scoreWriting(
   text: string, 
@@ -637,9 +536,7 @@ export async function scoreWriting(
   
   try {
     // Check rate limit
-    if (!(await checkRateLimit('scoreWriting'))) {
-      throw new Error('Rate limit exceeded. Please try again later.');
-    }
+    await checkRateLimit('scoreWriting');
     
     // Truncate text if it's too long for the API
     const truncatedText = text.length > 3000 ? text.substring(0, 3000) + '...' : text;
@@ -700,4 +597,3 @@ export async function scoreWriting(
     throw new Error(`Failed to score writing: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }
-

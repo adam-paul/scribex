@@ -1,0 +1,545 @@
+{
+  "types": [
+    {
+      "name": "BaseEntity",
+      "file": "/home/evilbadguy/projects/scribex/types/base.ts",
+      "properties": {
+        "id": "string",
+        "title": "string | undefined",
+        "description": "string | undefined"
+      },
+      "extends": [],
+      "usedIn": [
+        "Exercise",
+        "Achievement",
+        "WritingProject",
+        "WritingPrompt"
+      ]
+    },
+    {
+      "name": "NamedEntity",
+      "file": "/home/evilbadguy/projects/scribex/types/base.ts",
+      "properties": {
+        "id": "string",
+        "title": "string",
+        "description": "string"
+      },
+      "extends": [
+        "BaseEntity"
+      ],
+      "usedIn": [
+        "ExerciseSet",
+        "LearningLevel",
+        "Challenge",
+        "WritingTemplate"
+      ]
+    },
+    {
+      "name": "ProgressTrackable",
+      "file": "/home/evilbadguy/projects/scribex/types/base.ts",
+      "properties": {
+        "progress": "number",
+        "isCompleted": "boolean"
+      },
+      "extends": [],
+      "usedIn": [
+        "LearningLevel"
+      ]
+    },
+    {
+      "name": "ResultBase",
+      "file": "/home/evilbadguy/projects/scribex/types/base.ts",
+      "properties": {
+        "attempts": "number",
+        "isCorrect": "boolean",
+        "timeSpent": "number"
+      },
+      "extends": [],
+      "usedIn": [
+        "ExerciseProgress"
+      ]
+    },
+    {
+      "name": "TimestampInfo",
+      "file": "/home/evilbadguy/projects/scribex/types/base.ts",
+      "properties": {
+        "createdAt": "number | undefined",
+        "updatedAt": "number | undefined",
+        "completedAt": "number | undefined"
+      },
+      "extends": [],
+      "usedIn": []
+    },
+    {
+      "name": "ScoringInfo",
+      "file": "/home/evilbadguy/projects/scribex/types/base.ts",
+      "properties": {
+        "score": "number",
+        "isPassed": "boolean",
+        "requiredScore": "number | undefined"
+      },
+      "extends": [],
+      "usedIn": [
+        "ExerciseSetResult",
+        "LevelCompletion"
+      ]
+    },
+    {
+      "name": "Difficulty",
+      "file": "/home/evilbadguy/projects/scribex/types/base.ts",
+      "type": "1 | 2 | 3",
+      "usedIn": [
+        "LearningLevel",
+        "WritingTemplate"
+      ]
+    },
+    {
+      "name": "ContentCategory",
+      "file": "/home/evilbadguy/projects/scribex/types/base.ts",
+      "type": "'mechanics' | 'sequencing' | 'voice'",
+      "usedIn": [
+        "LearningLevel"
+      ]
+    },
+    {
+      "name": "WritingGenre",
+      "file": "/home/evilbadguy/projects/scribex/types/base.ts",
+      "type": "'essay' | 'story' | 'poetry' | 'journalism' | 'letter' | 'speech' | 'just-write'",
+      "usedIn": [
+        "Challenge",
+        "WritingProject",
+        "WritingTemplate",
+        "WritingPrompt",
+        "WritingStore"
+      ]
+    },
+    {
+      "name": "ExerciseType",
+      "file": "/home/evilbadguy/projects/scribex/types/base.ts",
+      "type": "'multiple-choice' | 'fill-in-blank' | 'matching' | 'reorder'",
+      "usedIn": [
+        "Exercise"
+      ]
+    },
+    {
+      "name": "Choice",
+      "file": "/home/evilbadguy/projects/scribex/types/exercises.ts",
+      "properties": {
+        "id": "string",
+        "text": "string",
+        "isCorrect": "boolean",
+        "explanation": "string | undefined"
+      },
+      "extends": [],
+      "usedIn": [
+        "Exercise"
+      ]
+    },
+    {
+      "name": "MatchingPair",
+      "file": "/home/evilbadguy/projects/scribex/types/exercises.ts",
+      "properties": {
+        "left": "string",
+        "right": "string"
+      },
+      "extends": [],
+      "usedIn": [
+        "Exercise"
+      ]
+    },
+    {
+      "name": "ReorderItem",
+      "file": "/home/evilbadguy/projects/scribex/types/exercises.ts",
+      "properties": {
+        "id": "string",
+        "text": "string"
+      },
+      "extends": [],
+      "usedIn": [
+        "Exercise"
+      ]
+    },
+    {
+      "name": "Exercise",
+      "file": "/home/evilbadguy/projects/scribex/types/exercises.ts",
+      "properties": {
+        "id": "string",
+        "title": "string | undefined",
+        "description": "string | undefined",
+        "levelId": "string",
+        "type": "ExerciseType",
+        "question": "string",
+        "instruction": "string",
+        "explanation": "string",
+        "choices": "Choice[] | undefined",
+        "correctAnswer": "string | undefined",
+        "fillOptions": "string[] | undefined",
+        "matchingPairs": "MatchingPair[] | undefined",
+        "reorderItems": "ReorderItem[] | undefined",
+        "correctOrder": "string[] | undefined"
+      },
+      "extends": [
+        "BaseEntity"
+      ],
+      "usedIn": [
+        "ExerciseSet",
+        "AIService"
+      ]
+    },
+    {
+      "name": "ExerciseSet",
+      "file": "/home/evilbadguy/projects/scribex/types/exercises.ts",
+      "properties": {
+        "id": "string",
+        "title": "string",
+        "description": "string",
+        "levelId": "string",
+        "exercises": "Exercise[]",
+        "requiredScore": "number",
+        "timeLimit": "number | undefined"
+      },
+      "extends": [
+        "NamedEntity"
+      ],
+      "usedIn": [
+        "AIService"
+      ]
+    },
+    {
+      "name": "ExerciseProgress",
+      "file": "/home/evilbadguy/projects/scribex/types/exercises.ts",
+      "properties": {
+        "attempts": "number",
+        "isCorrect": "boolean",
+        "timeSpent": "number",
+        "exerciseId": "string",
+        "isCompleted": "boolean"
+      },
+      "extends": [
+        "ResultBase"
+      ],
+      "usedIn": []
+    },
+    {
+      "name": "ExerciseSetResult",
+      "file": "/home/evilbadguy/projects/scribex/types/exercises.ts",
+      "properties": {
+        "score": "number",
+        "isPassed": "boolean",
+        "requiredScore": "number | undefined",
+        "setId": "string",
+        "levelId": "string",
+        "totalExercises": "number",
+        "correctAnswers": "number",
+        "isCompleted": "boolean",
+        "exercises": "Array<{id: string, isCorrect: boolean, attempts: number}>",
+        "startedAt": "number",
+        "completedAt": "number"
+      },
+      "extends": [
+        "ScoringInfo"
+      ],
+      "usedIn": []
+    },
+    {
+      "name": "LearningLevel",
+      "file": "/home/evilbadguy/projects/scribex/types/learning.ts",
+      "properties": {
+        "id": "string",
+        "title": "string",
+        "description": "string",
+        "progress": "number",
+        "isCompleted": "boolean",
+        "type": "ContentCategory",
+        "difficulty": "Difficulty",
+        "isRequired": "boolean",
+        "prerequisites": "string[]",
+        "isUnlocked": "boolean",
+        "order": "number | undefined",
+        "categoryProgress": "number | undefined"
+      },
+      "extends": [
+        "NamedEntity",
+        "ProgressTrackable"
+      ],
+      "usedIn": [
+        "LessonStore",
+        "LEVELS constant"
+      ]
+    },
+    {
+      "name": "LevelCompletion",
+      "file": "/home/evilbadguy/projects/scribex/types/learning.ts",
+      "properties": {
+        "score": "number",
+        "isPassed": "boolean",
+        "requiredScore": "number | undefined",
+        "levelId": "string",
+        "isCompleted": "boolean",
+        "attempts": "number",
+        "timeSpent": "number",
+        "completedAt": "number | undefined"
+      },
+      "extends": [
+        "ScoringInfo"
+      ],
+      "usedIn": []
+    },
+    {
+      "name": "Challenge",
+      "file": "/home/evilbadguy/projects/scribex/types/learning.ts",
+      "properties": {
+        "id": "string",
+        "title": "string",
+        "description": "string",
+        "type": "WritingGenre",
+        "wordCount": "number",
+        "timeLimit": "number | undefined",
+        "reward": "number"
+      },
+      "extends": [
+        "NamedEntity"
+      ],
+      "usedIn": []
+    },
+    {
+      "name": "Achievement",
+      "file": "/home/evilbadguy/projects/scribex/types/learning.ts",
+      "properties": {
+        "id": "string",
+        "title": "string",
+        "description": "string",
+        "icon": "string",
+        "unlockedAt": "string"
+      },
+      "extends": [
+        "BaseEntity"
+      ],
+      "usedIn": [
+        "UserProgress",
+        "ProgressStore"
+      ]
+    },
+    {
+      "name": "UserProgress",
+      "file": "/home/evilbadguy/projects/scribex/types/learning.ts",
+      "properties": {
+        "currentLevel": "string",
+        "levelProgress": "{ [key: string]: number }",
+        "completedLevels": "string[]",
+        "unlockedLevels": "string[]",
+        "totalScore": "number",
+        "dailyStreak": "number",
+        "achievements": "Achievement[]",
+        "lastUpdated": "number"
+      },
+      "extends": [],
+      "usedIn": [
+        "ProgressStore"
+      ]
+    },
+    {
+      "name": "WritingProject",
+      "file": "/home/evilbadguy/projects/scribex/types/writing.ts",
+      "properties": {
+        "id": "string",
+        "title": "string",
+        "content": "string",
+        "genre": "WritingGenre",
+        "wordCount": "number",
+        "targetWordCount": "number | undefined",
+        "dateCreated": "string",
+        "dateModified": "string",
+        "tags": "string[] | undefined",
+        "isCompleted": "boolean"
+      },
+      "extends": [
+        "BaseEntity"
+      ],
+      "usedIn": [
+        "WritingStore"
+      ]
+    },
+    {
+      "name": "TemplateSection",
+      "file": "/home/evilbadguy/projects/scribex/types/writing.ts",
+      "properties": {
+        "title": "string",
+        "description": "string",
+        "placeholder": "string"
+      },
+      "extends": [],
+      "usedIn": [
+        "WritingTemplate"
+      ]
+    },
+    {
+      "name": "WritingTemplate",
+      "file": "/home/evilbadguy/projects/scribex/types/writing.ts",
+      "properties": {
+        "id": "string",
+        "title": "string",
+        "description": "string",
+        "genre": "WritingGenre",
+        "structure": "{sections: TemplateSection[]}",
+        "exampleTopics": "string[]",
+        "recommendedWordCount": "number",
+        "difficulty": "Difficulty"
+      },
+      "extends": [
+        "NamedEntity"
+      ],
+      "usedIn": [
+        "TemplateService"
+      ]
+    },
+    {
+      "name": "WritingPrompt",
+      "file": "/home/evilbadguy/projects/scribex/types/writing.ts",
+      "properties": {
+        "id": "string",
+        "title": "string | undefined",
+        "description": "string | undefined",
+        "text": "string",
+        "genre": "WritingGenre",
+        "tags": "string[]"
+      },
+      "extends": [
+        "BaseEntity"
+      ],
+      "usedIn": [
+        "TemplateService"
+      ]
+    },
+    {
+      "name": "WritingFeedback",
+      "file": "/home/evilbadguy/projects/scribex/types/writing.ts",
+      "properties": {
+        "score": "number",
+        "grammarIssues": "string[]",
+        "styleComments": "string[]",
+        "strengthsPoints": "string[]",
+        "improvementPoints": "string[]",
+        "overallFeedback": "string"
+      },
+      "extends": [],
+      "usedIn": [
+        "AIService"
+      ]
+    },
+    {
+      "name": "WritingScore",
+      "file": "/home/evilbadguy/projects/scribex/types/writing.ts",
+      "properties": {
+        "overall": "number",
+        "mechanics": "number",
+        "organization": "number",
+        "creativity": "number",
+        "clarity": "number",
+        "scores": "Record<string, number>",
+        "feedback": "string"
+      },
+      "extends": [],
+      "usedIn": [
+        "AIService"
+      ]
+    }
+  ],
+  "relationships": [
+    {
+      "source": "NamedEntity",
+      "target": "BaseEntity",
+      "type": "extends"
+    },
+    {
+      "source": "LearningLevel",
+      "target": "NamedEntity",
+      "type": "extends"
+    },
+    {
+      "source": "LearningLevel",
+      "target": "ProgressTrackable",
+      "type": "extends"
+    },
+    {
+      "source": "Exercise",
+      "target": "BaseEntity",
+      "type": "extends"
+    },
+    {
+      "source": "ExerciseSet",
+      "target": "NamedEntity",
+      "type": "extends"
+    },
+    {
+      "source": "ExerciseProgress",
+      "target": "ResultBase",
+      "type": "extends"
+    },
+    {
+      "source": "ExerciseSetResult",
+      "target": "ScoringInfo",
+      "type": "extends"
+    },
+    {
+      "source": "LevelCompletion",
+      "target": "ScoringInfo",
+      "type": "extends"
+    },
+    {
+      "source": "Challenge",
+      "target": "NamedEntity",
+      "type": "extends"
+    },
+    {
+      "source": "Achievement",
+      "target": "BaseEntity",
+      "type": "extends"
+    },
+    {
+      "source": "WritingProject",
+      "target": "BaseEntity",
+      "type": "extends"
+    },
+    {
+      "source": "WritingTemplate",
+      "target": "NamedEntity",
+      "type": "extends"
+    },
+    {
+      "source": "WritingPrompt",
+      "target": "BaseEntity",
+      "type": "extends"
+    },
+    {
+      "source": "Exercise",
+      "target": "Choice",
+      "type": "contains"
+    },
+    {
+      "source": "Exercise",
+      "target": "MatchingPair",
+      "type": "contains"
+    },
+    {
+      "source": "Exercise",
+      "target": "ReorderItem",
+      "type": "contains"
+    },
+    {
+      "source": "ExerciseSet",
+      "target": "Exercise",
+      "type": "contains"
+    },
+    {
+      "source": "UserProgress",
+      "target": "Achievement",
+      "type": "contains"
+    },
+    {
+      "source": "WritingTemplate",
+      "target": "TemplateSection",
+      "type": "contains"
+    }
+  ]
+}

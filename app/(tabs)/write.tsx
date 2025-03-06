@@ -2,14 +2,14 @@ import { StyleSheet, View, Text, Alert, ActivityIndicator, Linking, Platform } f
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useState, useEffect } from 'react';
 import { router } from 'expo-router';
-import { PenSquare, FolderPlus, Sparkles, ArrowLeftCircle, Edit, ExternalLink } from 'lucide-react-native';
+import { FolderPlus, Sparkles, ArrowLeftCircle, Edit, ExternalLink } from 'lucide-react-native';
 import { colors } from '@/constants/colors';
 import { Button } from '@/components/Button';
 import { ProjectList } from '@/components/ProjectList';
 import { CreateProjectModal } from '@/components/CreateProjectModal';
 import { WritingEditor } from '@/components/WritingEditor';
 import { useWritingStore } from '@/stores/writing-store';
-import { WritingProject, WritingGenre } from '@/types/writing';
+import { WritingGenre, WritingProject } from '@/types';
 import { useAuth } from '@/contexts/AuthContext';
 import supabaseService from '@/services/supabase-service';
 
@@ -354,7 +354,7 @@ export default function WriteScreen() {
           wordCount: tempContent.trim().split(/\s+/).filter(Boolean).length || 0,
           dateCreated: new Date().toISOString(),
           dateModified: new Date().toISOString(),
-          completed: false
+          isCompleted: false
         }}
         content={currentProject ? currentProject.content : tempContent}
         onContentChange={handleContentChange}

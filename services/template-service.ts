@@ -1,4 +1,4 @@
-import { WritingTemplate, WritingGenre } from '@/types/writing';
+import { WritingTemplate, WritingGenre } from '@/types';
 import { WRITING_TEMPLATES } from '@/constants/templates';
 
 // Topic categories for interest-based recommendations

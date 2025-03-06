@@ -85,11 +85,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           await supabaseService.refreshUser();
         }
         
-        // Start preloading lessons in background
+        // Start prioritized preloading of lessons in background
         setTimeout(() => {
-          console.log('Initiating background preloading of lessons after login');
-          useLessonStore.getState().preloadAllLessons().catch(err => {
-            console.error('Background lesson preloading failed after login:', err);
+          console.log('Initiating prioritized preloading of lessons after login');
+          useLessonStore.getState().preloadPrioritizedLessons().catch(err => {
+            console.error('Prioritized lesson preloading failed after login:', err);
           });
         }, 3000); // Delay to prioritize UI loading
       } catch (error) {

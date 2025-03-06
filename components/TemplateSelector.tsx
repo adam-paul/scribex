@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { StyleSheet, View, Text, ScrollView, TouchableOpacity, Image } from 'react-native';
 import { BookOpen, FileText, Feather, Radio, Mail, Mic } from 'lucide-react-native';
 import { colors } from '@/constants/colors';
-import { WritingTemplate, WritingGenre } from '@/types/writing';
+import { WritingTemplate, WritingGenre } from '@/types';
 import { Card } from '@/components/Card';
 
 // Map of genre to icon

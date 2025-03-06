@@ -1,0 +1,244 @@
+{
+  "files": [
+    {
+      "path": "/home/evilbadguy/projects/scribex/app/_layout.tsx",
+      "classification": "layout",
+      "primary_purpose": "Root layout component that initializes the app with fonts, context providers, and handles authentication flow",
+      "dependencies": ["expo-router", "expo-font", "react", "contexts/ThemeContext", "contexts/AuthContext"]
+    },
+    {
+      "path": "/home/evilbadguy/projects/scribex/app/(tabs)/_layout.tsx",
+      "classification": "layout",
+      "primary_purpose": "Tab navigation structure for the main app experience",
+      "dependencies": ["expo-router", "react-native", "@/constants/colors"]
+    },
+    {
+      "path": "/home/evilbadguy/projects/scribex/app/(tabs)/index.tsx",
+      "classification": "layout",
+      "primary_purpose": "Journey tab (REDI) - Structured exercises",
+      "dependencies": ["@/components/LevelCard", "@/stores/progress-store", "@/constants/levels", "expo-router"]
+    },
+    {
+      "path": "/home/evilbadguy/projects/scribex/app/(tabs)/write.tsx",
+      "classification": "layout",
+      "primary_purpose": "Writing projects screen for OWL (Open World Learning) free writing experience",
+      "dependencies": ["@/components/ProjectList", "@/components/CreateProjectModal", "@/stores/writing-store"]
+    },
+    {
+      "path": "/home/evilbadguy/projects/scribex/app/(tabs)/creative.tsx",
+      "classification": "layout",
+      "primary_purpose": "Creative writing tools and writer's block assistance",
+      "dependencies": ["@/services/ai-service", "react-native"]
+    },
+    {
+      "path": "/home/evilbadguy/projects/scribex/app/exercise/[id].tsx",
+      "classification": "layout",
+      "primary_purpose": "Dynamic exercise page that loads and displays various exercise types based on level ID",
+      "dependencies": ["@/services/ai-service", "@/stores/lesson-store", "@/stores/progress-store"]
+    },
+    {
+      "path": "/home/evilbadguy/projects/scribex/app/auth/index.tsx",
+      "classification": "layout",
+      "primary_purpose": "Authentication screen with login/signup forms",
+      "dependencies": ["@/components/AuthForm", "@/contexts/AuthContext"]
+    },
+    {
+      "path": "/home/evilbadguy/projects/scribex/components/AuthForm.tsx",
+      "classification": "component",
+      "primary_purpose": "Authentication form for login and signup",
+      "dependencies": ["react-native", "@/services/supabase-service"]
+    },
+    {
+      "path": "/home/evilbadguy/projects/scribex/components/Button.tsx",
+      "classification": "component",
+      "primary_purpose": "Reusable button component with consistent styling",
+      "dependencies": ["react-native", "@/constants/colors"]
+    },
+    {
+      "path": "/home/evilbadguy/projects/scribex/components/Card.tsx",
+      "classification": "component",
+      "primary_purpose": "Reusable card component for displaying content in a consistent container",
+      "dependencies": ["react-native", "@/constants/colors"]
+    },
+    {
+      "path": "/home/evilbadguy/projects/scribex/components/CreateProjectModal.tsx",
+      "classification": "component",
+      "primary_purpose": "Modal for creating new writing projects with genre selection",
+      "dependencies": ["react-native", "@/components/GenreSelector", "@/stores/writing-store"]
+    },
+    {
+      "path": "/home/evilbadguy/projects/scribex/components/GenreSelector.tsx",
+      "classification": "component",
+      "primary_purpose": "UI for selecting writing genres with visual representations",
+      "dependencies": ["react-native", "@/constants/colors"]
+    },
+    {
+      "path": "/home/evilbadguy/projects/scribex/components/LevelAnimation.tsx",
+      "classification": "component",
+      "primary_purpose": "Animated celebration for level completion and unlocks",
+      "dependencies": ["react-native", "react-native-reanimated"]
+    },
+    {
+      "path": "/home/evilbadguy/projects/scribex/components/LevelCard.tsx",
+      "classification": "component",
+      "primary_purpose": "Card displaying level information, progress, and unlock status",
+      "dependencies": ["react-native", "@/constants/colors"]
+    },
+    {
+      "path": "/home/evilbadguy/projects/scribex/components/ProgressHeader.tsx",
+      "classification": "component",
+      "primary_purpose": "Header displaying user progress metrics like score and streak",
+      "dependencies": ["react-native", "@/constants/colors"]
+    },
+    {
+      "path": "/home/evilbadguy/projects/scribex/components/ProjectList.tsx",
+      "classification": "component",
+      "primary_purpose": "List of user's writing projects with metadata",
+      "dependencies": ["react-native", "@/stores/writing-store", "@/types/writing"]
+    },
+    {
+      "path": "/home/evilbadguy/projects/scribex/components/TemplateGuide.tsx",
+      "classification": "component",
+      "primary_purpose": "Displays guidance for different writing templates",
+      "dependencies": ["react-native", "@/constants/templates"]
+    },
+    {
+      "path": "/home/evilbadguy/projects/scribex/components/TemplateSelector.tsx",
+      "classification": "component",
+      "primary_purpose": "UI for browsing and selecting writing templates",
+      "dependencies": ["react-native", "@/constants/templates", "@/services/template-service"]
+    },
+    {
+      "path": "/home/evilbadguy/projects/scribex/components/WritingEditor.tsx",
+      "classification": "component",
+      "primary_purpose": "Distraction-free writing editor for projects",
+      "dependencies": ["react-native", "@/stores/writing-store"]
+    },
+    {
+      "path": "/home/evilbadguy/projects/scribex/contexts/AuthContext.tsx",
+      "classification": "context",
+      "primary_purpose": "Authentication context provider and state management",
+      "dependencies": ["react", "@/services/supabase-service", "@/stores/progress-store", "@/stores/writing-store"]
+    },
+    {
+      "path": "/home/evilbadguy/projects/scribex/contexts/ThemeContext.tsx",
+      "classification": "context",
+      "primary_purpose": "Theme context provider for app-wide theming",
+      "dependencies": ["react", "@/constants/themes"]
+    },
+    {
+      "path": "/home/evilbadguy/projects/scribex/services/ai-service.ts",
+      "classification": "service",
+      "primary_purpose": "AI service for generating exercises, evaluating writing, and providing feedback",
+      "dependencies": ["openai", "@/types/exercises", "@/constants/levels"]
+    },
+    {
+      "path": "/home/evilbadguy/projects/scribex/services/supabase-service.ts",
+      "classification": "service",
+      "primary_purpose": "Supabase integration for authentication, data storage, and synchronization",
+      "dependencies": ["@supabase/supabase-js", "@/types/learning"]
+    },
+    {
+      "path": "/home/evilbadguy/projects/scribex/services/supabase-storage.ts",
+      "classification": "service",
+      "primary_purpose": "Supabase storage integration for file uploads and management",
+      "dependencies": ["@supabase/supabase-js"]
+    },
+    {
+      "path": "/home/evilbadguy/projects/scribex/services/template-service.ts",
+      "classification": "service",
+      "primary_purpose": "Service for managing writing templates and topics",
+      "dependencies": ["@/constants/templates", "@/types/writing"]
+    },
+    {
+      "path": "/home/evilbadguy/projects/scribex/stores/lesson-store.ts",
+      "classification": "state",
+      "primary_purpose": "Zustand store for managing learning exercises and lesson data",
+      "dependencies": ["zustand", "@react-native-async-storage/async-storage", "@/services/ai-service"]
+    },
+    {
+      "path": "/home/evilbadguy/projects/scribex/stores/progress-store.ts",
+      "classification": "state",
+      "primary_purpose": "Zustand store for user progress tracking and synchronization",
+      "dependencies": ["zustand", "@react-native-async-storage/async-storage", "@/services/supabase-service"]
+    },
+    {
+      "path": "/home/evilbadguy/projects/scribex/stores/writing-store.ts",
+      "classification": "state",
+      "primary_purpose": "Zustand store for writing projects and editor state",
+      "dependencies": ["zustand", "@react-native-async-storage/async-storage", "@/types/writing"]
+    },
+    {
+      "path": "/home/evilbadguy/projects/scribex/types/exercises.ts",
+      "classification": "interface",
+      "primary_purpose": "Type definitions for exercise data structures",
+      "dependencies": ["@/types/base"]
+    },
+    {
+      "path": "/home/evilbadguy/projects/scribex/types/base.ts",
+      "classification": "interface",
+      "primary_purpose": "Base type definitions used throughout the app",
+      "dependencies": []
+    },
+    {
+      "path": "/home/evilbadguy/projects/scribex/types/learning.ts",
+      "classification": "interface",
+      "primary_purpose": "Type definitions for learning progress and structures",
+      "dependencies": ["@/types/base", "@/types/exercises"]
+    },
+    {
+      "path": "/home/evilbadguy/projects/scribex/types/writing.ts",
+      "classification": "interface",
+      "primary_purpose": "Type definitions for writing projects and templates",
+      "dependencies": ["@/types/base"]
+    },
+    {
+      "path": "/home/evilbadguy/projects/scribex/constants/colors.ts",
+      "classification": "constant",
+      "primary_purpose": "Color palette definitions for consistent UI",
+      "dependencies": []
+    },
+    {
+      "path": "/home/evilbadguy/projects/scribex/constants/levels.ts",
+      "classification": "constant",
+      "primary_purpose": "Learning level definitions and progression structure",
+      "dependencies": ["@/types/learning"]
+    },
+    {
+      "path": "/home/evilbadguy/projects/scribex/constants/templates.ts",
+      "classification": "constant",
+      "primary_purpose": "Writing template definitions for different genres and formats",
+      "dependencies": ["@/types/writing"]
+    },
+    {
+      "path": "/home/evilbadguy/projects/scribex/constants/themes.ts",
+      "classification": "constant",
+      "primary_purpose": "Theme definitions with colors and styling",
+      "dependencies": []
+    },
+    {
+      "path": "/home/evilbadguy/projects/scribex/app.config.js",
+      "classification": "configuration",
+      "primary_purpose": "Expo app configuration including environment variables",
+      "dependencies": []
+    },
+    {
+      "path": "/home/evilbadguy/projects/scribex/assets/images/icon.png",
+      "classification": "asset",
+      "primary_purpose": "App icon image",
+      "dependencies": []
+    },
+    {
+      "path": "/home/evilbadguy/projects/scribex/assets/images/splash-icon.png",
+      "classification": "asset",
+      "primary_purpose": "Splash screen image",
+      "dependencies": []
+    },
+    {
+      "path": "/home/evilbadguy/projects/scribex/assets/images/adaptive-icon.png",
+      "classification": "asset",
+      "primary_purpose": "Adaptive icon for Android",
+      "dependencies": []
+    }
+  ]
+}

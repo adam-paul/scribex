@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { Save, EyeOff, Eye, Type, Plus, Minus } from 'lucide-react-native';
 import { colors } from '@/constants/colors';
-import { WritingProject } from '@/types/writing';
+import { WritingProject } from '@/types';
 
 interface WritingEditorProps {
   project: WritingProject;

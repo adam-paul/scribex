@@ -7,11 +7,11 @@ export const LEVELS: LearningLevel[] = [
     description: 'Learn the fundamental building blocks of sentences and how to craft clear, effective statements.',
     type: 'mechanics',
     difficulty: 1,
-    required: true,
+    isRequired: true,
     prerequisites: [],
     progress: 0,
-    completed: false,
-    unlocked: true,
+    isCompleted: false,
+    isUnlocked: true,
     order: 1, // Add order for proper sequencing
   },
   {
@@ -20,11 +20,11 @@ export const LEVELS: LearningLevel[] = [
     description: 'Master the art of proper punctuation to enhance clarity and flow in your writing.',
     type: 'mechanics',
     difficulty: 1,
-    required: true,
+    isRequired: true,
     prerequisites: ['mechanics-1'],
     progress: 0,
-    completed: false,
-    unlocked: false,
+    isCompleted: false,
+    isUnlocked: false,
     order: 2, // Add order for proper sequencing
   },
   {
@@ -33,11 +33,11 @@ export const LEVELS: LearningLevel[] = [
     description: 'Learn to create smooth transitions between ideas and maintain a logical flow in your writing.',
     type: 'sequencing',
     difficulty: 2,
-    required: true,
+    isRequired: true,
     prerequisites: ['mechanics-2'],
     progress: 0,
-    completed: false,
-    unlocked: false,
+    isCompleted: false,
+    isUnlocked: false,
     order: 1, // Add order for proper sequencing
   },
   {
@@ -46,11 +46,11 @@ export const LEVELS: LearningLevel[] = [
     description: 'Develop your unique writing style while maintaining clarity and effectiveness.',
     type: 'voice',
     difficulty: 3,
-    required: true,
+    isRequired: true,
     prerequisites: ['sequencing-1'],
     progress: 0,
-    completed: false,
-    unlocked: false,
+    isCompleted: false,
+    isUnlocked: false,
     order: 1, // Add order for proper sequencing
   },
 ];

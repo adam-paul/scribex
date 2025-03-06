@@ -3,7 +3,7 @@ import { PersistStorage, StorageValue } from 'zustand/middleware/persist';
 import supabaseService from './supabase-service';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
-import { UserProgress } from '@/types/learning';
+import { UserProgress } from '@/types';
 
 // Unified storage mechanism that works across platforms
 const getStorageMechanism = (): StateStorage => {
