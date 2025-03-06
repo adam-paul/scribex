@@ -452,9 +452,7 @@ export async function getWritingFeedback(text: string): Promise<WritingFeedback>
   
   try {
     // Check rate limit
-    if (!(await checkRateLimit('getWritingFeedback'))) {
-      throw new Error('Rate limit exceeded. Please try again later.');
-    }
+    await checkRateLimit('getWritingFeedback');
     
     // Truncate text if it's too long for the API
     const truncatedText = text.length > 4000 ? text.substring(0, 4000) + '...' : text;
@@ -519,9 +517,7 @@ export async function getWritersBlockPrompts(
 
   try {
     // Check rate limit
-    if (!(await checkRateLimit('getWritersBlockPrompts'))) {
-      throw new Error('Rate limit exceeded. Please try again later.');
-    }
+    await checkRateLimit('getWritersBlockPrompts');
     
     // Even with no context, we should still generate AI prompts
     if (!context || Object.keys(context).length === 0) {
@@ -637,9 +633,7 @@ export async function scoreWriting(
   
   try {
     // Check rate limit
-    if (!(await checkRateLimit('scoreWriting'))) {
-      throw new Error('Rate limit exceeded. Please try again later.');
-    }
+    await checkRateLimit('scoreWriting');
     
     // Truncate text if it's too long for the API
     const truncatedText = text.length > 3000 ? text.substring(0, 3000) + '...' : text;
