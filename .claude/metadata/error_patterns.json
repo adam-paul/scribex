@@ -1,0 +1,205 @@
+{
+  "api_errors": {
+    "openai_api_failures": {
+      "error_codes": ["Empty response from OpenAI API", "Failed to generate exercise", "Rate limit exceeded"],
+      "symptoms": [
+        "Exercise generation fails",
+        "Writing feedback not provided",
+        "Writer's Block assistant produces no prompts",
+        "Console errors with 'Error generating exercise'"
+      ],
+      "affected_files": [
+        "/services/ai-service.ts",
+        "/stores/lesson-store.ts",
+        "/app/exercise/[id].tsx"
+      ],
+      "solutions": [
+        "Check API key in .env file and app.config.js",
+        "Verify rate limiting settings (currently 30 requests per minute)",
+        "Implement exponential backoff for retries",
+        "Ensure model name 'gpt-4o' is current/available"
+      ]
+    },
+    "supabase_connection_failures": {
+      "error_codes": ["Missing Supabase configuration", "Error getting user profile", "Error saving progress"],
+      "symptoms": [
+        "Authentication fails",
+        "Data doesn't sync between devices",
+        "Console errors with 'Error saving progress'",
+        "Progress reset unexpectedly"
+      ],
+      "affected_files": [
+        "/services/supabase-service.ts",
+        "/contexts/AuthContext.tsx",
+        "/stores/progress-store.ts"
+      ],
+      "solutions": [
+        "Check SUPABASE_URL and SUPABASE_ANON_KEY in .env",
+        "Verify network connectivity",
+        "Check for Supabase service outages",
+        "Validate that schema matches expected structure in supabase/schema.sql"
+      ]
+    }
+  },
+  "auth_issues": {
+    "session_management": {
+      "error_codes": ["Error signing out", "Error checking authentication", "Error handling sign in"],
+      "symptoms": [
+        "User remains logged in after sign out",
+        "Login state inconsistent between refreshes",
+        "Unable to access protected routes",
+        "Profile data not loading after login"
+      ],
+      "affected_files": [
+        "/contexts/AuthContext.tsx",
+        "/services/supabase-service.ts",
+        "/app/_layout.tsx"
+      ],
+      "solutions": [
+        "Clear AsyncStorage on sign out",
+        "Reset stores with resetProgress() and setProjects([])",
+        "Clear all cached exercises with clearAllExercises()",
+        "Ensure auth state listener is properly unsubscribed"
+      ]
+    },
+    "profile_creation": {
+      "error_codes": ["Error creating user profile", "Error updating user profile"],
+      "symptoms": [
+        "New users see generic username",
+        "Profile updates don't persist",
+        "Leaderboard ranking missing"
+      ],
+      "affected_files": [
+        "/services/supabase-service.ts",
+        "/contexts/AuthContext.tsx",
+        "/app/(tabs)/profile.tsx"
+      ],
+      "solutions": [
+        "Check if createOrUpdateUserProfile is called after registration",
+        "Verify user_profiles table structure in database",
+        "Ensure proper error handling in profile update functions",
+        "Check for permission issues in database"
+      ]
+    }
+  },
+  "state_management": {
+    "data_synchronization": {
+      "error_codes": ["Exception saving progress", "Exception saving writing project"],
+      "symptoms": [
+        "Progress lost between sessions",
+        "Writing projects disappear",
+        "Different state between mobile and web versions",
+        "Levels don't unlock properly"
+      ],
+      "affected_files": [
+        "/stores/progress-store.ts",
+        "/stores/writing-store.ts",
+        "/services/supabase-service.ts"
+      ],
+      "solutions": [
+        "Implement frequent auto-save (writeInterval in writing-store)",
+        "Use throttled saves for heavy state changes",
+        "Check and fix the sync timer clearance on sign out",
+        "Verify AsyncStorage vs localStorage handling for web"
+      ]
+    },
+    "stale_cache": {
+      "error_codes": ["Detected old exercise data", "Error rehydrating lesson store"],
+      "symptoms": [
+        "Exercises don't update with new content",
+        "Stale exercise data persists",
+        "Same exercises appearing repeatedly",
+        "Writing assessments using outdated criteria"
+      ],
+      "affected_files": [
+        "/stores/lesson-store.ts",
+        "/services/ai-service.ts"
+      ],
+      "solutions": [
+        "Implement cache invalidation with lastUpdated timestamps",
+        "Clear exercises older than 7 days automatically",
+        "Add manual refresh option in UI",
+        "Use clearAllExercises() during significant events like login/logout"
+      ]
+    }
+  },
+  "cross_platform": {
+    "web_specific": {
+      "error_codes": ["localStorage getItem error", "localStorage setItem error"],
+      "symptoms": [
+        "Web version fails to save state",
+        "Authentication doesn't persist on web",
+        "Inconsistent behavior between refresh on web"
+      ],
+      "affected_files": [
+        "/services/supabase-service.ts",
+        "/app/web/_layout.tsx"
+      ],
+      "solutions": [
+        "Check typeof window !== 'undefined' before localStorage access",
+        "Create custom storage implementation for web platform",
+        "Handle SSR scenarios by checking platform before storage operations",
+        "Use try/catch for all localStorage operations"
+      ]
+    },
+    "mobile_specific": {
+      "error_codes": ["AsyncStorage getItem error", "AsyncStorage setItem error"],
+      "symptoms": [
+        "Mobile app crashes on startup",
+        "State resets after app restart",
+        "Authentication lost after background/resume"
+      ],
+      "affected_files": [
+        "/services/supabase-service.ts",
+        "/stores/lesson-store.ts",
+        "/stores/writing-store.ts"
+      ],
+      "solutions": [
+        "Wrap AsyncStorage operations in try/catch blocks",
+        "Implement proper error handling for storage failures",
+        "Check for storage quota issues on device",
+        "Implement graceful fallbacks for storage failures"
+      ]
+    }
+  },
+  "ai_integration": {
+    "rate_limiting": {
+      "error_codes": ["Rate limit exceeded", "Failed to generate exercise set"],
+      "symptoms": [
+        "Multiple exercises fail to generate",
+        "Background preloading stops working",
+        "Writer's Block suggestions stop appearing",
+        "Console shows rate limit errors"
+      ],
+      "affected_files": [
+        "/services/ai-service.ts",
+        "/stores/lesson-store.ts"
+      ],
+      "solutions": [
+        "Implement proper exponential backoff for retries",
+        "Add jitter to request spacing (0-500ms random delay)",
+        "Batch similar requests when possible",
+        "Reduce MAX_REQUESTS_PER_MINUTE if needed (currently 30)"
+      ]
+    },
+    "parsing_failures": {
+      "error_codes": ["Incomplete exercise data", "Invalid multiple choice data", "Failed to parse response"],
+      "symptoms": [
+        "Exercises show with missing options",
+        "JSON parsing errors in console",
+        "Empty explanation sections in exercises",
+        "Writing feedback missing scores"
+      ],
+      "affected_files": [
+        "/services/ai-service.ts",
+        "/app/exercise/[id].tsx"
+      ],
+      "solutions": [
+        "Set response_format: { type: \"json_object\" } in OpenAI API calls",
+        "Add robust validation for API responses",
+        "Implement fallbacks for missing fields",
+        "Add more specific error messages for debugging"
+      ]
+    }
+  }
+}

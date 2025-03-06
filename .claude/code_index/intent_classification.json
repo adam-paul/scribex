@@ -1,0 +1,381 @@
+{
+  "services/ai-service.ts": [
+    {
+      "name": "isAiEnabled",
+      "intent": "Checks if both AI feature flag is enabled and a valid API key is available",
+      "side_effects": "Reads environment variables",
+      "dependencies": ["expo-constants"],
+      "error_cases": "None, returns boolean only"
+    },
+    {
+      "name": "validateAiAccess",
+      "intent": "Validates AI access availability and throws errors if unavailable",
+      "side_effects": "Throws errors that will interrupt execution flow",
+      "dependencies": ["expo-constants"],
+      "error_cases": "Throws error when AI features disabled or missing API key"
+    },
+    {
+      "name": "checkRateLimit",
+      "intent": "Implements rolling window rate limiting to prevent API overuse",
+      "side_effects": "Modifies shared apiRequestLog array, logs to console",
+      "dependencies": [],
+      "error_cases": "Throws error when rate limit exceeded"
+    },
+    {
+      "name": "generateExercise",
+      "intent": "Creates a single multiple-choice exercise using AI for a specific level and topic",
+      "side_effects": "Makes external API calls, logs errors",
+      "dependencies": ["openai", "LEVELS", "validateAiAccess", "checkRateLimit"],
+      "error_cases": "API failures, level not found, response parsing errors"
+    },
+    {
+      "name": "generateExerciseSet",
+      "intent": "Creates a complete set of varied exercises for a learning level",
+      "side_effects": "Makes multiple API calls, logs to console",
+      "dependencies": ["openai", "LEVELS", "validateAiAccess", "checkRateLimit", "generateAIExerciseWithType"],
+      "error_cases": "API failures, rate limiting errors, level not found"
+    },
+    {
+      "name": "generateAIExerciseWithType",
+      "intent": "Creates a specific type of exercise (multiple-choice, fill-in-blank, matching, reorder) with appropriate structure",
+      "side_effects": "Makes external API calls, logs errors",
+      "dependencies": ["openai", "validateAiAccess", "checkRateLimit"],
+      "error_cases": "API failures, validation errors for different exercise types"
+    },
+    {
+      "name": "getWritingFeedback",
+      "intent": "Analyzes student writing and provides structured feedback on grammar, style and content",
+      "side_effects": "Makes external API calls",
+      "dependencies": ["openai", "validateAiAccess", "checkRateLimit"],
+      "error_cases": "Input text too short, API failures"
+    },
+    {
+      "name": "getWritersBlockPrompts",
+      "intent": "Generates contextual writing prompts to help students overcome writer's block",
+      "side_effects": "Makes external API calls",
+      "dependencies": ["openai", "validateAiAccess", "checkRateLimit"],
+      "error_cases": "API failures, parsing errors, empty results"
+    },
+    {
+      "name": "scoreWriting",
+      "intent": "Evaluates student writing against rubrics and provides detailed scoring across multiple dimensions",
+      "side_effects": "Makes external API calls",
+      "dependencies": ["openai", "validateAiAccess", "checkRateLimit"],
+      "error_cases": "Input text too short, API failures, response parsing errors"
+    }
+  ],
+  "services/supabase-service.ts": [
+    {
+      "name": "SupabaseService.getInstance",
+      "intent": "Provides singleton access to the Supabase service",
+      "side_effects": "Creates instance if not exists",
+      "dependencies": ["@supabase/supabase-js", "AsyncStorage"],
+      "error_cases": "Missing Supabase configuration"
+    },
+    {
+      "name": "initializeUser",
+      "intent": "Loads user data from existing session during initialization",
+      "side_effects": "Sets user property on service",
+      "dependencies": ["supabase.auth"],
+      "error_cases": "Auth session issues"
+    },
+    {
+      "name": "refreshUser",
+      "intent": "Refreshes user data and profile from Supabase",
+      "side_effects": "Updates user property on service",
+      "dependencies": ["supabase.auth", "getUserProfile"],
+      "error_cases": "Auth session issues"
+    },
+    {
+      "name": "signUp",
+      "intent": "Registers new user and handles email verification flow",
+      "side_effects": "Creates user in Supabase, updates local user state",
+      "dependencies": ["supabase.auth"],
+      "error_cases": "Registration failures, network issues"
+    },
+    {
+      "name": "signIn",
+      "intent": "Authenticates user with credentials",
+      "side_effects": "Updates local user state",
+      "dependencies": ["supabase.auth"],
+      "error_cases": "Authentication failures, invalid credentials"
+    },
+    {
+      "name": "signOut",
+      "intent": "Logs out user and clears session",
+      "side_effects": "Clears local user state, removes auth session",
+      "dependencies": ["supabase.auth"],
+      "error_cases": "Network issues during sign out"
+    },
+    {
+      "name": "saveProgress",
+      "intent": "Persists complete user progress to cloud storage",
+      "side_effects": "Writes to Supabase database",
+      "dependencies": ["user authentication"],
+      "error_cases": "Not authenticated, network errors, database errors"
+    },
+    {
+      "name": "savePartialProgress",
+      "intent": "Updates only changed progress fields for efficiency",
+      "side_effects": "Reads and writes to Supabase database",
+      "dependencies": ["user authentication"],
+      "error_cases": "Not authenticated, fetch errors, update errors"
+    },
+    {
+      "name": "getProgress",
+      "intent": "Retrieves user progress from cloud",
+      "side_effects": "None",
+      "dependencies": ["user authentication"],
+      "error_cases": "Not authenticated, not found (first use), database errors"
+    },
+    {
+      "name": "saveWritingProjects",
+      "intent": "Persists all writing projects to cloud storage",
+      "side_effects": "Writes to Supabase database",
+      "dependencies": ["user authentication"],
+      "error_cases": "Not authenticated, network errors, database errors"
+    },
+    {
+      "name": "saveWritingProject",
+      "intent": "Persists a single writing project while preserving others",
+      "side_effects": "Reads and writes to Supabase database",
+      "dependencies": ["user authentication"],
+      "error_cases": "Not authenticated, fetch errors, update errors"
+    },
+    {
+      "name": "deleteWritingProject",
+      "intent": "Removes a writing project from cloud storage",
+      "side_effects": "Reads and writes to Supabase database",
+      "dependencies": ["user authentication"],
+      "error_cases": "Not authenticated, fetch errors"
+    },
+    {
+      "name": "getUserProfile",
+      "intent": "Retrieves user profile information from database",
+      "side_effects": "None",
+      "dependencies": ["user authentication"],
+      "error_cases": "Not authenticated, profile not found, database errors"
+    },
+    {
+      "name": "createOrUpdateUserProfile",
+      "intent": "Creates or updates user profile with appropriate defaults",
+      "side_effects": "Writes to Supabase database",
+      "dependencies": ["user authentication", "getUserProfile"],
+      "error_cases": "Not authenticated, database errors"
+    },
+    {
+      "name": "getLeaderboardRanking",
+      "intent": "Retrieves paginated leaderboard data sorted by XP",
+      "side_effects": "None",
+      "dependencies": [],
+      "error_cases": "Database errors, count errors"
+    },
+    {
+      "name": "getUserRank",
+      "intent": "Gets current user's position in leaderboard",
+      "side_effects": "None",
+      "dependencies": ["user authentication"],
+      "error_cases": "Not authenticated, database errors"
+    }
+  ],
+  "stores/lesson-store.ts": [
+    {
+      "name": "useLessonStore",
+      "intent": "Provides global state management for exercise content with persistence",
+      "side_effects": "Creates persisted state in AsyncStorage",
+      "dependencies": ["zustand", "AsyncStorage"],
+      "error_cases": "Storage errors during rehydration"
+    },
+    {
+      "name": "addExerciseToLevel",
+      "intent": "Adds a single exercise to the cached collection for a level",
+      "side_effects": "Updates store state, triggers persistence",
+      "dependencies": [],
+      "error_cases": "None"
+    },
+    {
+      "name": "hasExercisesForLevel",
+      "intent": "Checks if any exercises exist for a specific level",
+      "side_effects": "None",
+      "dependencies": [],
+      "error_cases": "None"
+    },
+    {
+      "name": "getExercisesForLevel",
+      "intent": "Retrieves all cached exercises for a level",
+      "side_effects": "None",
+      "dependencies": [],
+      "error_cases": "None, returns empty array if not found"
+    },
+    {
+      "name": "setGenerationInProgress",
+      "intent": "Tracks which levels are currently generating exercises to prevent duplicates",
+      "side_effects": "Updates store state",
+      "dependencies": [],
+      "error_cases": "None"
+    },
+    {
+      "name": "clearExercisesForLevel",
+      "intent": "Removes all cached exercises for a level to force regeneration",
+      "side_effects": "Updates store state, logs to console",
+      "dependencies": [],
+      "error_cases": "None"
+    },
+    {
+      "name": "clearAllExercises",
+      "intent": "Completely resets exercise cache to ensure fresh content",
+      "side_effects": "Updates store state, removes data from AsyncStorage, logs to console",
+      "dependencies": ["AsyncStorage"],
+      "error_cases": "Storage removal errors"
+    },
+    {
+      "name": "createExerciseSetFromCachedExercises",
+      "intent": "Creates a structured exercise set from locally cached exercises",
+      "side_effects": "None",
+      "dependencies": ["LEVELS"],
+      "error_cases": "No cached exercises, level not found"
+    },
+    {
+      "name": "preloadExerciseForLevel",
+      "intent": "Generates and caches a single exercise for a level in background",
+      "side_effects": "Makes AI API calls, updates store state, logs to console",
+      "dependencies": ["LEVELS", "ai-service", "setGenerationInProgress", "addExerciseToLevel"],
+      "error_cases": "Level not found, AI service errors"
+    },
+    {
+      "name": "preloadAllLessons",
+      "intent": "Background loads exercises for current level to improve user experience",
+      "side_effects": "Makes multiple API calls, logs to console",
+      "dependencies": ["progress-store", "preloadExerciseForLevel"],
+      "error_cases": "Progress not available, API errors"
+    }
+  ],
+  "stores/progress-store.ts": [
+    {
+      "name": "useProgressStore",
+      "intent": "Manages user learning progress with persistence and cloud syncing",
+      "side_effects": "Creates persisted state with custom storage",
+      "dependencies": ["zustand", "createProgressStorage"],
+      "error_cases": "Storage rehydration failures"
+    },
+    {
+      "name": "calculateLevel",
+      "intent": "Converts XP points to user level based on threshold table",
+      "side_effects": "None",
+      "dependencies": ["LEVEL_THRESHOLDS"],
+      "error_cases": "None, defaults to level 1"
+    },
+    {
+      "name": "calculateXP",
+      "intent": "Calculates total XP from various progress components",
+      "side_effects": "None",
+      "dependencies": [],
+      "error_cases": "None"
+    },
+    {
+      "name": "_updateProgressAndSync",
+      "intent": "Efficiently updates local state and syncs changed fields to server",
+      "side_effects": "Updates store state, makes network calls",
+      "dependencies": ["NetInfo", "supabase-service"],
+      "error_cases": "Network connectivity issues, sync failures"
+    },
+    {
+      "name": "isCategoryUnlocked",
+      "intent": "Determines if a content category is available based on progress thresholds",
+      "side_effects": "None",
+      "dependencies": ["CATEGORY_UNLOCK_THRESHOLDS"],
+      "error_cases": "Unknown category"
+    },
+    {
+      "name": "checkAndUnlockNextContent",
+      "intent": "Automatically unlocks new levels and categories when thresholds are reached",
+      "side_effects": "Updates progress state, logs to console",
+      "dependencies": ["completeLevel", "unlockLevel"],
+      "error_cases": "None"
+    },
+    {
+      "name": "resetProgress",
+      "intent": "Resets user progress to initial state (development tool)",
+      "side_effects": "Clears all progress data",
+      "dependencies": ["initialProgress"],
+      "error_cases": "None"
+    },
+    {
+      "name": "setProgress",
+      "intent": "Updates multiple progress fields at once",
+      "side_effects": "Updates store state, marks changes for sync",
+      "dependencies": [],
+      "error_cases": "None"
+    },
+    {
+      "name": "completeLevel",
+      "intent": "Marks a level as completed in user progress",
+      "side_effects": "Updates store state, syncs to server",
+      "dependencies": ["_updateProgressAndSync"],
+      "error_cases": "None"
+    },
+    {
+      "name": "unlockLevel",
+      "intent": "Makes a new level available to the user",
+      "side_effects": "Updates store state, syncs to server",
+      "dependencies": ["_updateProgressAndSync"],
+      "error_cases": "None"
+    },
+    {
+      "name": "incrementStreak",
+      "intent": "Increases user's daily activity streak counter",
+      "side_effects": "Updates store state, syncs to server",
+      "dependencies": ["_updateProgressAndSync"],
+      "error_cases": "None"
+    },
+    {
+      "name": "addPoints",
+      "intent": "Adds score points to user's total",
+      "side_effects": "Updates store state, syncs to server",
+      "dependencies": ["_updateProgressAndSync"],
+      "error_cases": "None"
+    },
+    {
+      "name": "getNextLevel",
+      "intent": "Determines the next level based on prerequisites in level definitions",
+      "side_effects": "None",
+      "dependencies": ["LEVELS"],
+      "error_cases": "Level not found, no next level exists"
+    },
+    {
+      "name": "updateCategoryProgress",
+      "intent": "Updates progress percentage for current level and triggers unlocks",
+      "side_effects": "Updates store state, logs to console, triggers content unlocks",
+      "dependencies": ["_updateProgressAndSync", "checkAndUnlockNextContent"],
+      "error_cases": "None"
+    },
+    {
+      "name": "unlockAchievement",
+      "intent": "Awards an achievement to user with timestamp",
+      "side_effects": "Updates store state, syncs to server",
+      "dependencies": ["_updateProgressAndSync", "ACHIEVEMENTS"],
+      "error_cases": "Achievement not found, already unlocked"
+    },
+    {
+      "name": "updateUserProfileFromProgress",
+      "intent": "Updates user's level and XP in profile based on current progress",
+      "side_effects": "Updates user profile in database",
+      "dependencies": ["calculateXP", "calculateLevel", "supabase-service"],
+      "error_cases": "User not logged in, profile update failures"
+    },
+    {
+      "name": "syncWithServer",
+      "intent": "Pushes local progress to cloud with throttling to prevent excessive writes",
+      "side_effects": "Makes network calls, updates profile",
+      "dependencies": ["NetInfo", "supabase-service", "updateUserProfileFromProgress"],
+      "error_cases": "Network connectivity issues, sync failures"
+    },
+    {
+      "name": "markSynced",
+      "intent": "Marks data as synchronized with server",
+      "side_effects": "Updates sync state",
+      "dependencies": [],
+      "error_cases": "None"
+    }
+  ]
+}

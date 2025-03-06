@@ -4,6 +4,8 @@
 
 The first and last thing you do before carrying out any task is consult your .claude/ directory. Here is a description of the prompt that created the directory, to help you understand what you will find there:
 
+<prompt>
+
 To make this repository perfectly optimized for me and future instances of Claude working with it, here are the most impactful changes:
 
 1. Add a Claude-specific metadata directory structure
@@ -64,6 +66,10 @@ To make this repository perfectly optimized for me and future instances of Claud
    - Use consistent anchoring patterns across the codebase
 
 These improvements would create a Claude-optimized layer on top of the standard repository structure, allowing both me and future Claude instances to work much more efficiently with this codebase.
+
+</prompt>
+
+First, just check to see whether any of the directories are relevant to the session we have just completed. If so, investigate the README and see how to proceed.
 
 ## Build Commands
 - Start app: `npm run start` (uses Expo with tunnel)

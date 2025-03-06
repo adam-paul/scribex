@@ -1,0 +1,108 @@
+{
+  "patterns": [
+    {
+      "name": "API Error Handler Pattern",
+      "description": "A consistent try-catch pattern used when interacting with external APIs like OpenAI. Provides detailed error logging, error type identification, and graceful degradation when API calls fail.",
+      "codeExample": "try {\n  validateAiAccess();\n  await checkRateLimit('generateExercise');\n  const response = await openai.chat.completions.create({\n    model: \"gpt-4o\",\n    messages: [{ role: \"system\", content: systemPrompt }]\n  });\n  // Process response\n} catch (error) {\n  console.error('Error generating exercise:', error);\n  throw new Error(`Failed to generate exercise: ${error instanceof Error ? error.message : 'Unknown error'}`);\n}",
+      "edgeCases": [
+        "Invalid API keys",
+        "Rate limiting reached",
+        "Network connectivity issues",
+        "Malformed API responses"
+      ],
+      "benefits": [
+        "Prevents application crashes during API failures",
+        "Provides specific error messages for debugging",
+        "Preserves context of failed operations",
+        "Allows for graceful degradation of features"
+      ]
+    },
+    {
+      "name": "State Management Error Handler Pattern",
+      "description": "Ensures robust state updates with error handling for both synchronous and asynchronous state operations. Maintains data consistency even when operations fail.",
+      "codeExample": "try {\n  // First get current projects\n  const { data, error: fetchError } = await this.supabase\n    .from('user_writing_projects')\n    .select('projects_data')\n    .eq('user_id', this.user.id)\n    .single();\n    \n  if (fetchError && fetchError.code !== 'PGRST116') {\n    console.error('Error fetching existing projects:', fetchError.message);\n    return false;\n  }\n  \n  // Update state safely\n  const currentProjects = data?.projects_data || [];\n  // Continue with operation\n} catch (e) {\n  console.error('Exception saving writing project:', e);\n  return false;\n}",
+      "edgeCases": [
+        "Concurrent state updates",
+        "Partial state updates failing",
+        "Stale state causing inconsistencies",
+        "Failed storage synchronization"
+      ],
+      "benefits": [
+        "Maintains data integrity during failures",
+        "Prevents corrupted state",
+        "Gives meaningful feedback to users",
+        "Allows for retry mechanisms"
+      ]
+    },
+    {
+      "name": "Authentication Error Handling Pattern",
+      "description": "Special error handling for authentication flows that provides secure fallbacks, manages expired sessions, and handles invalid credentials while preserving user privacy.",
+      "codeExample": "try {\n  const { data, error } = await supabaseService.getClient().auth.getSession();\n  \n  if (error) {\n    setUser(null);\n  } else if (data.session) {\n    const refreshedUser = await supabaseService.refreshUser();\n    setUser(refreshedUser);\n  } else {\n    setUser(null);\n  }\n} catch (error) {\n  console.error('Error checking authentication:', error);\n  setUser(null);\n} finally {\n  setIsLoading(false);\n}",
+      "edgeCases": [
+        "Expired authentication tokens",
+        "Invalid credentials",
+        "Session timeout during operations",
+        "Multiple device sign-ins",
+        "Failed authentication provider"
+      ],
+      "benefits": [
+        "Prevents security vulnerabilities",
+        "Handles token expiration gracefully",
+        "Provides clear user feedback on auth issues",
+        "Maintains secure state during auth failures"
+      ]
+    },
+    {
+      "name": "Offline-First Error Handling Pattern",
+      "description": "Implements resilient behavior for offline usage, allowing the app to function without connectivity and synchronize when connection is restored.",
+      "codeExample": "// In a data operation\ntry {\n  // First try to save to online database\n  const saved = await supabaseService.saveProgress(progress, 'progressStore');\n  \n  if (!saved) {\n    // If online save fails, mark for future sync\n    pendingSyncs.push({ type: 'progress', data: progress, timestamp: Date.now() });\n    AsyncStorage.setItem('pendingSyncs', JSON.stringify(pendingSyncs));\n    console.log('Saved progress to pending syncs queue');\n  }\n  \n  return true;\n} catch (error) {\n  // Always save locally even if remote fails\n  console.error('Error syncing progress:', error);\n  return false;\n}",
+      "edgeCases": [
+        "Intermittent connectivity",
+        "Long offline periods",
+        "Conflict resolution during sync",
+        "Storage limitations while offline",
+        "Failed sync after reconnection"
+      ],
+      "benefits": [
+        "Ensures app functionality without internet",
+        "Preserves user data during connectivity issues",
+        "Transparent background synchronization",
+        "Prevents data loss during network failures"
+      ]
+    },
+    {
+      "name": "UI Error Boundary Pattern",
+      "description": "Implements React Error Boundaries to prevent entire app crashes when UI components fail, isolating errors to specific components while allowing the rest of the app to function.",
+      "codeExample": "export class ErrorBoundary extends React.Component<Props, State> {\n  constructor(props: Props) {\n    super(props);\n    this.state = { hasError: false, error: null };\n  }\n\n  static getDerivedStateFromError(error: Error) {\n    return { hasError: true, error };\n  }\n\n  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {\n    sendErrorToIframeParent(error, errorInfo);\n    if (this.props.onError) {\n      this.props.onError(error, errorInfo);\n    }\n  }\n\n  render() {\n    if (this.state.hasError) {\n      return (\n        <View style={styles.container}>\n          <Text style={styles.title}>Something went wrong</Text>\n          <Text style={styles.subtitle}>{this.state.error?.message}</Text>\n        </View>\n      );\n    }\n    return this.props.children;\n  }\n}",
+      "edgeCases": [
+        "Rendering errors in nested components",
+        "Failed data fetching during render",
+        "Invalid prop types causing render failures",
+        "Memory leaks in component trees"
+      ],
+      "benefits": [
+        "Prevents complete app crashes from component failures",
+        "Provides user-friendly error messages",
+        "Isolates errors to specific UI sections",
+        "Enables centralized error reporting"
+      ]
+    },
+    {
+      "name": "Validation Error Handler Pattern",
+      "description": "Pre-emptive error handling that validates inputs before operations, providing clear feedback and preventing invalid operations.",
+      "codeExample": "// Helper function to validate if we can make API calls\nfunction validateAiAccess(): void {\n  if (!ENABLE_AI_FEATURES) {\n    throw new Error('AI features are disabled in application configuration');\n  }\n  \n  if (OPENAI_API_KEY === 'dummy-api-key') {\n    throw new Error('Invalid or missing OpenAI API key');\n  }\n}\n\n// Usage\ntry {\n  // Validate before making expensive operations\n  validateAiAccess();\n  // Proceed with operation\n} catch (error) {\n  console.error('AI access validation failed:', error);\n  // Handle gracefully\n}",
+      "edgeCases": [
+        "Invalid input types",
+        "Out-of-range values",
+        "Missing required fields",
+        "Malformed data structures"
+      ],
+      "benefits": [
+        "Prevents errors by catching invalid inputs early",
+        "Provides clear error messages to users",
+        "Reduces server-side validation failures",
+        "Improves application security"
+      ]
+    }
+  ]
+}

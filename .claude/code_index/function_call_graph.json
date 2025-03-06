@@ -1,0 +1,288 @@
+{
+  "functions": [
+    {
+      "name": "generateExercise",
+      "file": "/services/ai-service.ts",
+      "input": [
+        {"name": "levelId", "type": "string"},
+        {"name": "topic", "type": "string"}
+      ],
+      "output": "Promise<Exercise>",
+      "calls": [
+        "validateAiAccess",
+        "checkRateLimit",
+        "openai.chat.completions.create"
+      ],
+      "calledBy": []
+    },
+    {
+      "name": "generateExerciseSet",
+      "file": "/services/ai-service.ts",
+      "input": [
+        {"name": "options", "type": "AIRequestOptions"}
+      ],
+      "output": "Promise<ExerciseSet>",
+      "calls": [
+        "validateAiAccess",
+        "checkRateLimit",
+        "generateAIExerciseWithType"
+      ],
+      "calledBy": []
+    },
+    {
+      "name": "generateAIExerciseWithType",
+      "file": "/services/ai-service.ts",
+      "input": [
+        {"name": "levelId", "type": "string"},
+        {"name": "levelType", "type": "string"},
+        {"name": "topic", "type": "string"},
+        {"name": "exerciseType", "type": "string"},
+        {"name": "difficulty", "type": "number"}
+      ],
+      "output": "Promise<Exercise>",
+      "calls": [
+        "validateAiAccess",
+        "checkRateLimit",
+        "openai.chat.completions.create"
+      ],
+      "calledBy": [
+        "generateExerciseSet",
+        "preloadExerciseForLevel"
+      ]
+    },
+    {
+      "name": "getWritingFeedback",
+      "file": "/services/ai-service.ts",
+      "input": [
+        {"name": "text", "type": "string"}
+      ],
+      "output": "Promise<WritingFeedback>",
+      "calls": [
+        "validateAiAccess",
+        "checkRateLimit",
+        "openai.chat.completions.create"
+      ],
+      "calledBy": []
+    },
+    {
+      "name": "getWritersBlockPrompts",
+      "file": "/services/ai-service.ts",
+      "input": [
+        {"name": "context", "type": "{ topic?: string; genre?: string; currentText?: string; userPreferences?: string[] }"}
+      ],
+      "output": "Promise<string[]>",
+      "calls": [
+        "validateAiAccess",
+        "checkRateLimit",
+        "openai.chat.completions.create"
+      ],
+      "calledBy": []
+    },
+    {
+      "name": "scoreWriting",
+      "file": "/services/ai-service.ts",
+      "input": [
+        {"name": "text", "type": "string"},
+        {"name": "options", "type": "{ genre?: string; rubric?: Record<string, number> }"}
+      ],
+      "output": "Promise<WritingScore>",
+      "calls": [
+        "validateAiAccess",
+        "checkRateLimit",
+        "openai.chat.completions.create"
+      ],
+      "calledBy": []
+    },
+    {
+      "name": "checkRateLimit",
+      "file": "/services/ai-service.ts",
+      "input": [
+        {"name": "endpoint", "type": "string"}
+      ],
+      "output": "Promise<void>",
+      "calls": [],
+      "calledBy": [
+        "generateExercise",
+        "generateExerciseSet",
+        "generateAIExerciseWithType",
+        "getWritingFeedback",
+        "getWritersBlockPrompts",
+        "scoreWriting"
+      ]
+    },
+    {
+      "name": "saveProgress",
+      "file": "/services/supabase-service.ts",
+      "input": [
+        {"name": "progress", "type": "UserProgress"},
+        {"name": "source", "type": "string"}
+      ],
+      "output": "Promise<boolean>",
+      "calls": [
+        "supabase.from('user_progress').upsert"
+      ],
+      "calledBy": [
+        "syncWithServer"
+      ]
+    },
+    {
+      "name": "savePartialProgress",
+      "file": "/services/supabase-service.ts",
+      "input": [
+        {"name": "partialProgress", "type": "Partial<UserProgress>"},
+        {"name": "source", "type": "string"}
+      ],
+      "output": "Promise<boolean>",
+      "calls": [
+        "supabase.from('user_progress').select",
+        "supabase.from('user_progress').upsert"
+      ],
+      "calledBy": [
+        "_updateProgressAndSync"
+      ]
+    },
+    {
+      "name": "getProgress",
+      "file": "/services/supabase-service.ts",
+      "input": [
+        {"name": "source", "type": "string"}
+      ],
+      "output": "Promise<UserProgress | null>",
+      "calls": [
+        "supabase.from('user_progress').select"
+      ],
+      "calledBy": []
+    },
+    {
+      "name": "getUserProfile",
+      "file": "/services/supabase-service.ts",
+      "input": [
+        {"name": "source", "type": "string"}
+      ],
+      "output": "Promise<UserProfile | null>",
+      "calls": [
+        "supabase.from('user_profiles').select"
+      ],
+      "calledBy": [
+        "refreshUser",
+        "createOrUpdateUserProfile"
+      ]
+    },
+    {
+      "name": "preloadExerciseForLevel",
+      "file": "/stores/lesson-store.ts",
+      "input": [
+        {"name": "levelId", "type": "string"}
+      ],
+      "output": "Promise<Exercise | null>",
+      "calls": [
+        "setGenerationInProgress",
+        "getExerciseCount",
+        "generateAIExerciseWithType",
+        "addExerciseToLevel"
+      ],
+      "calledBy": [
+        "fetchExercises",
+        "preloadAllLessons"
+      ]
+    },
+    {
+      "name": "preloadAllLessons",
+      "file": "/stores/lesson-store.ts",
+      "input": [],
+      "output": "Promise<void>",
+      "calls": [
+        "getExerciseCount",
+        "preloadExerciseForLevel"
+      ],
+      "calledBy": [
+        "finishExerciseSet"
+      ]
+    },
+    {
+      "name": "createExerciseSetFromCachedExercises",
+      "file": "/stores/lesson-store.ts",
+      "input": [
+        {"name": "levelId", "type": "string"}
+      ],
+      "output": "ExerciseSet | null",
+      "calls": [
+        "getExercisesForLevel"
+      ],
+      "calledBy": [
+        "fetchExercises"
+      ]
+    },
+    {
+      "name": "_updateProgressAndSync",
+      "file": "/stores/progress-store.ts",
+      "input": [
+        {"name": "updateFn", "type": "(state: ProgressState) => Partial<ProgressState> | null"}
+      ],
+      "output": "Promise<void>",
+      "calls": [
+        "savePartialProgress",
+        "markSynced"
+      ],
+      "calledBy": [
+        "completeLevel",
+        "unlockLevel",
+        "incrementStreak",
+        "addPoints",
+        "updateCategoryProgress",
+        "unlockAchievement"
+      ]
+    },
+    {
+      "name": "updateCategoryProgress",
+      "file": "/stores/progress-store.ts",
+      "input": [
+        {"name": "category", "type": "'mechanics' | 'sequencing' | 'voice'"},
+        {"name": "value", "type": "number"}
+      ],
+      "output": "Promise<void>",
+      "calls": [
+        "_updateProgressAndSync",
+        "checkAndUnlockNextContent"
+      ],
+      "calledBy": [
+        "finishExerciseSet"
+      ]
+    },
+    {
+      "name": "checkAndUnlockNextContent",
+      "file": "/stores/progress-store.ts",
+      "input": [],
+      "output": "Promise<void>",
+      "calls": [
+        "completeLevel",
+        "unlockLevel"
+      ],
+      "calledBy": [
+        "updateCategoryProgress"
+      ]
+    },
+    {
+      "name": "isCategoryUnlocked",
+      "file": "/stores/progress-store.ts",
+      "input": [
+        {"name": "category", "type": "'mechanics' | 'sequencing' | 'voice'"}
+      ],
+      "output": "boolean",
+      "calls": [],
+      "calledBy": []
+    },
+    {
+      "name": "syncWithServer",
+      "file": "/stores/progress-store.ts",
+      "input": [],
+      "output": "Promise<boolean>",
+      "calls": [
+        "saveProgress",
+        "updateUserProfileFromProgress",
+        "markSynced"
+      ],
+      "calledBy": []
+    }
+  ]
+}

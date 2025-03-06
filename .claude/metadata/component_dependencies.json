@@ -1,0 +1,72 @@
+{
+  "AuthForm": {
+    "dependencies": [],
+    "dependents": ["app/auth/index.tsx"],
+    "filePath": "components/AuthForm.tsx"
+  },
+  "Button": {
+    "dependencies": [],
+    "dependents": ["components/CreateProjectModal.tsx", "app/exercise/[id].tsx", "app/modal.tsx"],
+    "filePath": "components/Button.tsx"
+  },
+  "Card": {
+    "dependencies": [],
+    "dependents": ["components/ProgressHeader.tsx", "app/web/index.tsx"],
+    "filePath": "components/Card.tsx"
+  },
+  "CreateProjectModal": {
+    "dependencies": ["Button", "GenreSelector"],
+    "dependents": ["app/(tabs)/write.tsx"],
+    "filePath": "components/CreateProjectModal.tsx"
+  },
+  "GenreSelector": {
+    "dependencies": [],
+    "dependents": ["components/CreateProjectModal.tsx"],
+    "filePath": "components/GenreSelector.tsx"
+  },
+  "LevelAnimation": {
+    "dependencies": [],
+    "dependents": ["app/(tabs)/index.tsx"],
+    "filePath": "components/LevelAnimation.tsx"
+  },
+  "LevelCard": {
+    "dependencies": [],
+    "dependents": ["app/(tabs)/index.tsx"],
+    "filePath": "components/LevelCard.tsx"
+  },
+  "ProgressHeader": {
+    "dependencies": ["Card"],
+    "dependents": ["app/(tabs)/index.tsx"],
+    "filePath": "components/ProgressHeader.tsx"
+  },
+  "ProjectList": {
+    "dependencies": [],
+    "dependents": ["app/(tabs)/write.tsx"],
+    "filePath": "components/ProjectList.tsx"
+  },
+  "TemplateGuide": {
+    "dependencies": [],
+    "dependents": ["app/modal.tsx"],
+    "filePath": "components/TemplateGuide.tsx"
+  },
+  "TemplateSelector": {
+    "dependencies": ["Card"],
+    "dependents": ["app/modal.tsx"],
+    "filePath": "components/TemplateSelector.tsx"
+  },
+  "WebHeader": {
+    "dependencies": [],
+    "dependents": ["app/web/index.tsx", "app/web/_layout.tsx"],
+    "filePath": "components/WebHeader.tsx"
+  },
+  "WebProjectList": {
+    "dependencies": [],
+    "dependents": ["app/web/index.tsx"],
+    "filePath": "components/WebProjectList.tsx"
+  },
+  "WritingEditor": {
+    "dependencies": [],
+    "dependents": ["app/(tabs)/write.tsx"],
+    "filePath": "components/WritingEditor.tsx"
+  }
+}
