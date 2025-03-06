@@ -64,9 +64,52 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp" WITH SCHEMA "extensions";
 
 
 
+
+CREATE OR REPLACE FUNCTION "public"."handle_updated_at"() RETURNS "trigger"
+    LANGUAGE "plpgsql"
+    AS $$
+begin
+  new.updated_at = now();
+  return new;
+end;
+$$;
+
+
+ALTER FUNCTION "public"."handle_updated_at"() OWNER TO "postgres";
+
 SET default_tablespace = '';
 
 SET default_table_access_method = "heap";
+
+
+CREATE TABLE IF NOT EXISTS "public"."user_profiles" (
+    "id" "uuid" DEFAULT "extensions"."uuid_generate_v4"() NOT NULL,
+    "user_id" "uuid" NOT NULL,
+    "username" "text" NOT NULL,
+    "display_name" "text",
+    "level" integer DEFAULT 1 NOT NULL,
+    "xp" integer DEFAULT 0 NOT NULL,
+    "avatar_url" "text",
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL
+);
+
+
+ALTER TABLE "public"."user_profiles" OWNER TO "postgres";
+
+
+CREATE OR REPLACE VIEW "public"."leaderboard" AS
+ SELECT "up"."user_id",
+    "up"."username",
+    "up"."display_name",
+    "up"."level",
+    "up"."xp",
+    "up"."avatar_url",
+    "row_number"() OVER (ORDER BY "up"."xp" DESC) AS "rank"
+   FROM "public"."user_profiles" "up";
+
+
+ALTER TABLE "public"."leaderboard" OWNER TO "postgres";
 
 
 CREATE TABLE IF NOT EXISTS "public"."user_progress" (
@@ -89,6 +132,16 @@ CREATE TABLE IF NOT EXISTS "public"."user_writing_projects" (
 ALTER TABLE "public"."user_writing_projects" OWNER TO "postgres";
 
 
+ALTER TABLE ONLY "public"."user_profiles"
+    ADD CONSTRAINT "user_profiles_pkey" PRIMARY KEY ("id");
+
+
+
+ALTER TABLE ONLY "public"."user_profiles"
+    ADD CONSTRAINT "user_profiles_user_id_key" UNIQUE ("user_id");
+
+
+
 ALTER TABLE ONLY "public"."user_progress"
     ADD CONSTRAINT "user_progress_pkey" PRIMARY KEY ("user_id");
 
@@ -99,11 +152,30 @@ ALTER TABLE ONLY "public"."user_writing_projects"
 
 
 
+-- Indices for user_progress table
 CREATE INDEX "idx_user_progress_updated_at" ON "public"."user_progress" USING "btree" ("updated_at");
+CREATE INDEX "idx_user_progress_user_id" ON "public"."user_progress" USING "btree" ("user_id");
 
-
-
+-- Indices for user_writing_projects table
 CREATE INDEX "idx_user_writing_projects_updated_at" ON "public"."user_writing_projects" USING "btree" ("updated_at");
+CREATE INDEX "idx_user_writing_projects_user_id" ON "public"."user_writing_projects" USING "btree" ("user_id");
+
+-- Indices for user_profiles table
+CREATE INDEX "idx_user_profiles_xp" ON "public"."user_profiles" USING "btree" ("xp" DESC);
+CREATE INDEX "idx_user_profiles_level" ON "public"."user_profiles" USING "btree" ("level" DESC);
+
+
+
+CREATE OR REPLACE TRIGGER "handle_updated_at" BEFORE UPDATE ON "public"."user_profiles" FOR EACH ROW EXECUTE FUNCTION "public"."handle_updated_at"();
+
+
+
+CREATE OR REPLACE TRIGGER "handle_updated_at" BEFORE UPDATE ON "public"."user_progress" FOR EACH ROW EXECUTE FUNCTION "public"."handle_updated_at"();
+
+
+
+ALTER TABLE ONLY "public"."user_profiles"
+    ADD CONSTRAINT "user_profiles_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "auth"."users"("id") ON DELETE CASCADE;
 
 
 
@@ -117,12 +189,39 @@ ALTER TABLE ONLY "public"."user_writing_projects"
 
 
 
+CREATE POLICY "Users can insert their own profile" ON "public"."user_profiles" FOR INSERT TO "authenticated" WITH CHECK (("auth"."uid"() = "user_id"));
+
+
+
+CREATE POLICY "Users can insert their own progress" ON "public"."user_progress" FOR INSERT TO "authenticated" WITH CHECK (("auth"."uid"() = "user_id"));
+
+
+
 CREATE POLICY "Users can only access their own progress" ON "public"."user_progress" USING (("auth"."uid"() = "user_id"));
 
 
 
 CREATE POLICY "Users can only access their own writing projects" ON "public"."user_writing_projects" USING (("auth"."uid"() = "user_id"));
 
+
+
+CREATE POLICY "Users can update their own profile" ON "public"."user_profiles" FOR UPDATE TO "authenticated" USING (("auth"."uid"() = "user_id"));
+
+
+
+CREATE POLICY "Users can update their own progress" ON "public"."user_progress" FOR UPDATE TO "authenticated" USING (("auth"."uid"() = "user_id"));
+
+
+
+CREATE POLICY "Users can view all profiles" ON "public"."user_profiles" FOR SELECT TO "authenticated" USING (true);
+
+
+
+CREATE POLICY "Users can view their own progress" ON "public"."user_progress" FOR SELECT TO "authenticated" USING (("auth"."uid"() = "user_id"));
+
+
+
+ALTER TABLE "public"."user_profiles" ENABLE ROW LEVEL SECURITY;
 
 
 ALTER TABLE "public"."user_progress" ENABLE ROW LEVEL SECURITY;
@@ -324,6 +423,10 @@ GRANT USAGE ON SCHEMA "public" TO "service_role";
 
 
 
+REVOKE ALL ON FUNCTION "public"."handle_updated_at"() FROM PUBLIC;
+GRANT ALL ON FUNCTION "public"."handle_updated_at"() TO "anon";
+GRANT ALL ON FUNCTION "public"."handle_updated_at"() TO "authenticated";
+GRANT ALL ON FUNCTION "public"."handle_updated_at"() TO "service_role";
 
 
 
@@ -336,6 +439,21 @@ GRANT USAGE ON SCHEMA "public" TO "service_role";
 
 
 
+
+
+
+
+
+
+GRANT ALL ON TABLE "public"."user_profiles" TO "anon";
+GRANT ALL ON TABLE "public"."user_profiles" TO "authenticated";
+GRANT ALL ON TABLE "public"."user_profiles" TO "service_role";
+
+
+
+GRANT ALL ON TABLE "public"."leaderboard" TO "anon";
+GRANT ALL ON TABLE "public"."leaderboard" TO "authenticated";
+GRANT ALL ON TABLE "public"."leaderboard" TO "service_role";
 
 
 
@@ -378,6 +496,10 @@ ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "public" GRANT ALL ON TAB
 
 
 
+
+
+
+ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" REVOKE ALL ON FUNCTIONS  FROM PUBLIC;
 
 
 

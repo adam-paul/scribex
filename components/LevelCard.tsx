@@ -22,18 +22,18 @@ export function LevelCard({ level, onPress, themeColors }: LevelCardProps) {
   
   return (
     <Pressable
-      onPress={level.unlocked ? onPress : undefined}
+      onPress={level.isUnlocked ? onPress : undefined}
       style={({ pressed }) => [
         styles.container,
         pressed && styles.pressed,
-        !level.unlocked && styles.locked,
+        !level.isUnlocked && styles.locked,
       ]}
     >
       <View style={styles.content}>
         <View style={styles.header}>
           <Text style={styles.title}>{level.title}</Text>
-          {!level.unlocked && <Lock size={20} color={colors.textMuted} />}
-          {level.completed && <CheckCircle size={20} color={colors.success} />}
+          {!level.isUnlocked && <Lock size={20} color={colors.textMuted} />}
+          {level.isCompleted && <CheckCircle size={20} color={colors.success} />}
         </View>
         
         <Text style={styles.description}>{level.description}</Text>

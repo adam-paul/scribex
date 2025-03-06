@@ -5,47 +5,34 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
 import { UserProgress } from '@/types/learning';
 
-// Define a fallback storage mechanism
-const getStorageMechanism = () => {
-  // For web, use localStorage
+// Unified storage mechanism that works across platforms
+const getStorageMechanism = (): StateStorage => {
+  // For web, use localStorage with defensive checks
   if (Platform.OS === 'web') {
     return {
-      getItem: (key: string) => {
+      getItem: async (key: string): Promise<string | null> => {
+        if (typeof window === 'undefined') return null;
         try {
-          // Check if window is defined (client-side) before accessing localStorage
-          if (typeof window !== 'undefined') {
-            const value = window.localStorage.getItem(key);
-            return Promise.resolve(value);
-          }
-          // Return null if we're in a server environment
-          return Promise.resolve(null);
+          return window.localStorage.getItem(key);
         } catch (e) {
           console.error('localStorage error:', e);
-          return Promise.resolve(null);
+          return null;
         }
       },
-      setItem: (key: string, value: string) => {
+      setItem: async (key: string, value: string): Promise<void> => {
+        if (typeof window === 'undefined') return;
         try {
-          // Check if window is defined (client-side) before accessing localStorage
-          if (typeof window !== 'undefined') {
-            window.localStorage.setItem(key, value);
-          }
-          return Promise.resolve();
+          window.localStorage.setItem(key, value);
         } catch (e) {
           console.error('localStorage error:', e);
-          return Promise.resolve();
         }
       },
-      removeItem: (key: string) => {
+      removeItem: async (key: string): Promise<void> => {
+        if (typeof window === 'undefined') return;
         try {
-          // Check if window is defined (client-side) before accessing localStorage
-          if (typeof window !== 'undefined') {
-            window.localStorage.removeItem(key);
-          }
-          return Promise.resolve();
+          window.localStorage.removeItem(key);
         } catch (e) {
           console.error('localStorage error:', e);
-          return Promise.resolve();
         }
       }
     };
@@ -58,6 +45,48 @@ const getStorageMechanism = () => {
 // Get the appropriate storage mechanism for the platform
 const localStorageMechanism = getStorageMechanism();
 
+// Extract data from store based on store type
+const extractDataForSync = <T>(storeName: string, value: StorageValue<T>): any => {
+  // Parse value if needed
+  const parsedValue = typeof value === 'string' 
+    ? JSON.parse(value) 
+    : value;
+  
+  if (!parsedValue) return null;
+  
+  // Handle progress store
+  if (storeName === 'progress') {
+    // Check for progress in various locations
+    if (parsedValue.progress) {
+      return parsedValue.progress;
+    } 
+    if (parsedValue.state?.progress) {
+      return parsedValue.state.progress;
+    }
+    if (typeof parsedValue === 'object' && 
+        'currentLevel' in parsedValue && 
+        'mechanicsProgress' in parsedValue) {
+      return parsedValue;
+    }
+  } 
+  
+  // Handle writing store
+  else if (storeName === 'writing') {
+    // Check for projects array in various locations
+    if (Array.isArray(parsedValue.projects)) {
+      return parsedValue.projects;
+    }
+    if (Array.isArray(parsedValue.state?.projects)) {
+      return parsedValue.state.projects;
+    }
+    if (Array.isArray(parsedValue)) {
+      return parsedValue;
+    }
+  }
+  
+  return null;
+};
+
 // Implement StateStorage interface for Zustand middleware
 export const createSupabaseStorage = <T>(storeName: string): PersistStorage<T> => {
   return {
@@ -66,40 +95,9 @@ export const createSupabaseStorage = <T>(storeName: string): PersistStorage<T> =
         // First try to get from local storage regardless of login state
         const localData = await localStorageMechanism.getItem(name);
         
-        // Get user authentication status
-        const user = supabaseService.getCurrentUser();
-        
-        // If no user is logged in, just return local data
-        if (!user) {
-          return localData as StorageValue<T> | null;
-        }
-        
-        // If user is logged in, try to get from Supabase
-        try {
-          let remoteData = null;
-          
-          if (storeName === 'progress') {
-            remoteData = await supabaseService.getProgress();
-          } else if (storeName === 'writing') {
-            remoteData = await supabaseService.getWritingProjects();
-          }
-          
-          // If we got data from Supabase, use it
-          if (remoteData) {
-            // The data should already be properly typed
-            const stringifiedData = JSON.stringify(remoteData);
-            // Also update local storage with remote data
-            await localStorageMechanism.setItem(name, stringifiedData);
-            return stringifiedData as unknown as StorageValue<T>;
-          }
-          
-          // If no remote data, fall back to local data
-          return localData as unknown as StorageValue<T> | null;
-        } catch (supabaseError) {
-          console.error(`Supabase fetch error: ${supabaseError}`);
-          // Fall back to local data if Supabase fails
-          return localData as unknown as StorageValue<T> | null;
-        }
+        // During login/logout transitions, avoid Supabase calls by always using local data
+        // This prevents unnecessary API calls during auth state changes
+        return localData as StorageValue<T> | null;
       } catch (error) {
         console.error(`Error getting ${storeName}:`, error);
         return null;
@@ -108,62 +106,14 @@ export const createSupabaseStorage = <T>(storeName: string): PersistStorage<T> =
     
     setItem: async (name: string, value: StorageValue<T>): Promise<void> => {
       try {
-        // Convert value to string if needed
+        // Save to local storage first (always)
         const valueString = typeof value === 'string' ? value : JSON.stringify(value);
-        
-        // Save to local storage
         await localStorageMechanism.setItem(name, valueString);
         
-        // Check if user is logged in for Supabase sync
-        const user = supabaseService.getCurrentUser();
-        if (!user) {
-          return; // No user, just keep local storage
-        }
-        
-        // Parse value safely
-        let parsedValue;
-        try {
-          parsedValue = typeof value === 'string' ? JSON.parse(value) : value;
-        } catch (parseError) {
-          console.error(`JSON parse error: ${parseError}`);
-          return; // If we can't parse, don't proceed with Supabase save
-        }
-        
-        // Save to Supabase based on store type
-        try {
-          if (storeName === 'progress') {
-            // For progress, extract ONLY the progress data to prevent nesting
-            // Check both direct access and nested under state (Zustand persist structure)
-            if (parsedValue && parsedValue.progress) {
-              console.log('Saving only progress data to Supabase');
-              await supabaseService.saveProgress(parsedValue.progress);
-            } else if (parsedValue && parsedValue.state && parsedValue.state.progress) {
-              console.log('Saving nested progress data to Supabase');
-              await supabaseService.saveProgress(parsedValue.state.progress);
-            } else {
-              // If neither structure matches, try to save the whole object but log a warning
-              console.warn('Unexpected progress format, attempting to save:', parsedValue);
-              await supabaseService.saveProgress(parsedValue as UserProgress);
-            }
-          } else if (storeName === 'writing') {
-            // For writing, extract ONLY the projects array to prevent nesting
-            // Check both direct access and nested under state (Zustand persist structure)
-            if (parsedValue && parsedValue.projects && Array.isArray(parsedValue.projects)) {
-              console.log('Saving only projects array to Supabase:', parsedValue.projects.length);
-              await supabaseService.saveWritingProjects(parsedValue.projects);
-            } else if (parsedValue && parsedValue.state && parsedValue.state.projects && Array.isArray(parsedValue.state.projects)) {
-              console.log('Saving nested projects array to Supabase:', parsedValue.state.projects.length);
-              await supabaseService.saveWritingProjects(parsedValue.state.projects);
-            } else {
-              console.error('Invalid writing store format, skipping sync:', parsedValue);
-            }
-          }
-        } catch (supabaseError) {
-          console.error(`Supabase save error: ${supabaseError}`);
-          // We already saved to AsyncStorage, so just log the error
-        }
+        // During sign-in/sign-out transitions, don't sync with cloud
+        // This simplifies the auth flow and prevents race conditions
       } catch (error) {
-        console.error(`Storage error: ${error}`);
+        console.error(`Storage error while saving ${storeName}:`, error);
       }
     },
     
@@ -172,35 +122,27 @@ export const createSupabaseStorage = <T>(storeName: string): PersistStorage<T> =
         // Remove from local storage
         await localStorageMechanism.removeItem(name);
         
-        // Check if user is logged in
+        // Skip Supabase operations if not logged in
         const user = supabaseService.getCurrentUser();
-        if (!user) {
-          return;
-        }
+        if (!user) return;
         
-        // Clear data in Supabase
-        try {
-          if (storeName === 'progress') {
-            // Use default progress for reset
-            const emptyProgress: UserProgress = {
-              currentLevel: 'mechanics-1',
-              mechanicsProgress: 0,
-              sequencingProgress: 0,
-              voiceProgress: 0,
-              completedLevels: [],
-              unlockedLevels: ['mechanics-1'],
-              totalScore: 0,
-              dailyStreak: 0,
-              achievements: [],
-              lastUpdated: Date.now(),
-            };
-            await supabaseService.saveProgress(emptyProgress);
-          } else if (storeName === 'writing') {
-            // Use an empty array directly for writing projects
-            await supabaseService.saveWritingProjects([]);
-          }
-        } catch (supabaseError) {
-          console.error(`Supabase remove error: ${supabaseError}`);
+        // Reset data in Supabase to default state
+        if (storeName === 'progress') {
+          const emptyProgress: UserProgress = {
+            currentLevel: 'mechanics-1',
+            mechanicsProgress: 0,
+            sequencingProgress: 0,
+            voiceProgress: 0,
+            completedLevels: [],
+            unlockedLevels: ['mechanics-1'],
+            totalScore: 0,
+            dailyStreak: 0,
+            achievements: [],
+            lastUpdated: Date.now(),
+          };
+          await supabaseService.saveProgress(emptyProgress);
+        } else if (storeName === 'writing') {
+          await supabaseService.saveWritingProjects([]);
         }
       } catch (error) {
         console.error(`Error removing ${storeName}:`, error);

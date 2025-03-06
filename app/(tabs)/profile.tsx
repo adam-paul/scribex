@@ -22,39 +22,49 @@ export default function ProfileScreen() {
   const achievements = useProgressStore(state => state.progress.achievements);
   const completedLevels = useProgressStore(state => state.progress.completedLevels);
   
-  // Load user rank
+  // Load user rank - streamlined to avoid dependency issues
   const loadUserRank = useCallback(async () => {
-    if (isAuthenticated && user) {
-      const rank = await supabaseService.getUserRank();
-      setUserRank(rank);
+    try {
+      // Only fetch rank if user is authenticated
+      if (user?.id) {
+        const rank = await supabaseService.getUserRank('profile.loadUserRank');
+        setUserRank(rank);
+      }
+    } catch (error) {
+      console.error('Error loading user rank:', error);
     }
-  }, [isAuthenticated, user]);
+  }, [user?.id]);
   
-  // Load all user data
-  const loadAllData = useCallback(async () => {
+  // Load only rank data since user data is handled by AuthContext
+  const loadProfileData = useCallback(async () => {
     setLoading(true);
     try {
-      await loadUserData();
       await loadUserRank();
     } catch (error) {
       console.error('Error loading profile data:', error);
     } finally {
       setLoading(false);
     }
-  }, [loadUserData, loadUserRank]);
+  }, [loadUserRank]);
   
-  // Handle pull-to-refresh
+  // Handle pull-to-refresh - reload all data
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await loadAllData();
-    setRefreshing(false);
-  }, [loadAllData]);
+    try {
+      // Explicitly refresh user data on pull-to-refresh
+      await Promise.all([
+        loadUserData(),
+        loadUserRank()
+      ]);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [loadUserData, loadUserRank]);
   
-  // Load user data when component mounts
+  // Just load rank when component mounts
   useEffect(() => {
-    // Load user data if authenticated
-    loadAllData();
-  }, [loadAllData]);
+    loadProfileData();
+  }, [loadProfileData]);
   
   // If not authenticated, don't render anything
   if (!isAuthenticated || !user) {
@@ -105,7 +115,8 @@ export default function ProfileScreen() {
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
       >
-        {loading ? (
+        {/* Always show profile content, only show loading indicator on initial load */}
+        {loading && !user?.profile ? (
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="large" color={colors.primary} />
             <Text style={styles.loadingText}>Loading profile...</Text>
@@ -121,9 +132,11 @@ export default function ProfileScreen() {
                 <View style={styles.headerText}>
                   <Text style={styles.name}>{username}</Text>
                   <Text style={styles.level}>Level {userLevel} Writer</Text>
-                  {userRank && (
+                  {userRank ? (
                     <Text style={styles.rank}>Rank #{userRank}</Text>
-                  )}
+                  ) : loading ? (
+                    <Text style={styles.rank}>Loading rank...</Text>
+                  ) : null}
                 </View>
               </View>
               <View style={styles.signOutContainer}>

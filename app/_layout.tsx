@@ -1,48 +1,20 @@
 import FontAwesome from "@expo/vector-icons/FontAwesome";
 import { useFonts } from "expo-font";
-import { Slot, useRouter, usePathname } from "expo-router";
+import { Slot } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { useEffect } from "react";
-import { Platform, View, ActivityIndicator, Text } from "react-native";
+import { Platform, View, ActivityIndicator, AppState, AppStateStatus } from "react-native";
 import { ErrorBoundary } from "./error-boundary";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { useProgressStore } from "@/stores/progress-store";
+import { useLessonStore } from "@/stores/lesson-store";
 
 // Set to false to maintain progress data between app launches
 const DEV_RESET_PROGRESS_ON_LAUNCH = false;
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
-
-/**
- * This component handles navigation based on auth state
- * It's separate from the loading indicator to avoid navigation issues
- */
-function AuthNavigationEffect() {
-  const { isAuthenticated, isLoading } = useAuth();
-  const router = useRouter();
-  const pathname = usePathname();
-  
-  // Handle navigation based on auth state
-  useEffect(() => {
-    // Skip if still loading
-    if (isLoading) return;
-    
-    // Handle sign out case - if we're not on the auth page and not authenticated
-    const isAuthPath = pathname.startsWith('/auth');
-    if (!isAuthenticated && !isAuthPath && pathname !== '/') {
-      console.log('Auth navigation effect: Not authenticated, redirecting to /', { pathname });
-      // Use setTimeout to avoid navigation during render
-      setTimeout(() => {
-        router.replace('/');
-      }, 0);
-    }
-  }, [isAuthenticated, isLoading, pathname, router]);
-  
-  // This component doesn't render anything
-  return null;
-}
 
 /**
  * Root layout with simplified authentication flow
@@ -90,7 +62,6 @@ export default function RootLayout() {
     <ErrorBoundary>
       <AuthProvider>
         <ThemeProvider>
-          <AuthNavigationEffect />
           <RootLayoutNav />
         </ThemeProvider>
       </AuthProvider>
@@ -102,7 +73,34 @@ export default function RootLayout() {
  * This component handles the loading state during authentication check
  */
 function RootLayoutNav() {
-  const { isLoading } = useAuth();
+  const { isLoading, isAuthenticated } = useAuth();
+  
+  // Listen for app state changes to resume lesson preloading
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    
+    // Handler for app state changes
+    const handleAppStateChange = (nextAppState: AppStateStatus) => {
+      if (nextAppState === 'active') {
+        // App has come to the foreground
+        // Resume any pending lesson generations after a short delay
+        console.log('App returned to foreground, will resume exercise preloading');
+        setTimeout(() => {
+          console.log('Initiating background preloading after app resume');
+          useLessonStore.getState().preloadAllLessons().catch(err => {
+            console.error('Background lesson preloading failed on app resume:', err);
+          });
+        }, 2000);
+      }
+    };
+    
+    // Subscribe to app state changes
+    const subscription = AppState.addEventListener('change', handleAppStateChange);
+    
+    return () => {
+      subscription.remove();
+    };
+  }, [isAuthenticated]);
   
   // Show loading indicator while checking auth
   if (isLoading) {

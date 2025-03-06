@@ -19,25 +19,33 @@ interface WritingEditorProps {
   content: string;
   onContentChange: (content: string) => void;
   onSave: () => void;
-  focusMode: boolean;
-  onToggleFocusMode: () => void;
+  focusMode?: boolean;
+  onToggleFocusMode?: () => void;
 }
 
+/**
+ * Combined writing editor that works on both web and mobile
+ */
 export function WritingEditor({ 
   project, 
   content, 
   onContentChange, 
   onSave,
-  focusMode,
-  onToggleFocusMode,
+  focusMode = false,
+  onToggleFocusMode = () => {},
 }: WritingEditorProps) {
   const [fontSize, setFontSize] = useState(16);
   const [keyboardVisible, setKeyboardVisible] = useState(false);
   const [showToolbar, setShowToolbar] = useState(true);
+  const isWeb = Platform.OS === 'web';
   
-  const toolbarOpacity = new Animated.Value(1);
+  // Mobile-only animation
+  const toolbarOpacity = !isWeb ? new Animated.Value(1) : null;
   
+  // Mobile-only keyboard handling
   useEffect(() => {
+    if (isWeb) return; // Skip on web
+    
     const keyboardDidShowListener = Keyboard.addListener(
       'keyboardDidShow',
       () => {
@@ -59,9 +67,12 @@ export function WritingEditor({
       keyboardDidHideListener.remove();
       keyboardDidShowListener.remove();
     };
-  }, [focusMode]);
+  }, [focusMode, isWeb]);
   
+  // Mobile-only toolbar animations
   const fadeOutToolbar = () => {
+    if (!toolbarOpacity) return;
+    
     setShowToolbar(false);
     Animated.timing(toolbarOpacity, {
       toValue: 0,
@@ -71,6 +82,8 @@ export function WritingEditor({
   };
   
   const fadeInToolbar = () => {
+    if (!toolbarOpacity) return;
+    
     setShowToolbar(true);
     Animated.timing(toolbarOpacity, {
       toValue: 1,
@@ -79,6 +92,7 @@ export function WritingEditor({
     }).start();
   };
   
+  // Shared font size controls
   const increaseFontSize = () => {
     setFontSize(prev => Math.min(prev + 2, 24));
   };
@@ -87,6 +101,9 @@ export function WritingEditor({
     setFontSize(prev => Math.max(prev - 2, 12));
   };
   
+  // Calculate word count 
+  const wordCount = content.trim().split(/\s+/).filter(Boolean).length || 0;
+  
   // Get appropriate placeholder text based on genre
   const getPlaceholderText = () => {
     if (project.genre === 'just-write') {
@@ -94,7 +111,67 @@ export function WritingEditor({
     }
     return `Start writing your ${project.genre} here...`;
   };
+
+  // Web version
+  if (isWeb) {
+    return (
+      <View style={[styles.container, styles.webContainer]}>
+        <View style={styles.toolbar}>
+          <View style={styles.toolbarLeft}>
+            <View style={styles.fontSizeControls}>
+              <TouchableOpacity 
+                style={styles.toolbarButton}
+                onPress={decreaseFontSize}
+              >
+                <Minus size={16} color={colors.textSecondary} />
+              </TouchableOpacity>
+              
+              <View style={styles.fontSizeDisplay}>
+                <Type size={14} color={colors.textSecondary} />
+                <Text style={styles.fontSizeText}>{fontSize}</Text>
+              </View>
+              
+              <TouchableOpacity 
+                style={styles.toolbarButton}
+                onPress={increaseFontSize}
+              >
+                <Plus size={16} color={colors.textSecondary} />
+              </TouchableOpacity>
+            </View>
+            
+            <Text style={styles.wordCount}>
+              Words: {wordCount}
+            </Text>
+          </View>
+          
+          <TouchableOpacity 
+            style={[styles.saveButton, styles.webSaveButton]}
+            onPress={onSave}
+          >
+            <Save size={16} color={colors.text} />
+            <Text style={styles.saveButtonText}>Save</Text>
+          </TouchableOpacity>
+        </View>
+        
+        <View style={styles.webEditorContainer}>
+          <TextInput
+            style={[styles.editor, styles.webEditor, { fontSize }]}
+            multiline
+            value={content}
+            onChangeText={onContentChange}
+            placeholder={getPlaceholderText()}
+            placeholderTextColor={colors.textMuted}
+            autoCapitalize="sentences"
+            autoCorrect
+            autoFocus={project.genre === 'just-write' && !content}
+            textAlignVertical="top"
+          />
+        </View>
+      </View>
+    );
+  }
   
+  // Mobile version
   return (
     <KeyboardAvoidingView
       style={styles.container}
@@ -103,7 +180,7 @@ export function WritingEditor({
       <Animated.View 
         style={[
           styles.toolbar, 
-          { opacity: toolbarOpacity },
+          { opacity: toolbarOpacity ?? 1 },
           !showToolbar && styles.hidden
         ]}
       >
@@ -167,14 +244,14 @@ export function WritingEditor({
           keyboardType="default"
           returnKeyType="default"
           blurOnSubmit={false}
-          autoFocus={project.genre === 'just-write' && !content} // Auto-focus for Just Write mode
+          autoFocus={project.genre === 'just-write' && !content}
         />
       </View>
       
       {!keyboardVisible && !focusMode && (
         <View style={styles.footer}>
           <Text style={styles.wordCount}>
-            Words: {content.trim().split(/\s+/).filter(Boolean).length || 0}
+            Words: {wordCount}
           </Text>
         </View>
       )}
@@ -182,6 +259,7 @@ export function WritingEditor({
   );
 }
 
+// Combined styles
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -259,5 +337,29 @@ const styles = StyleSheet.create({
   wordCount: {
     fontSize: 14,
     color: colors.textSecondary,
+  },
+  
+  // Web-specific styles
+  webContainer: {
+    borderRadius: 8,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  webSaveButton: {
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+  },
+  webEditorContainer: {
+    flex: 1,
+    padding: 16,
+    backgroundColor: colors.background,
+  },
+  webEditor: {
+    minHeight: Platform.OS === 'web' ? 500 : 'auto',
+    ...(Platform.OS === 'web' && {
+      outlineStyle: 'none',
+      fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Ubuntu, "Helvetica Neue", sans-serif',
+    }),
   },
 });

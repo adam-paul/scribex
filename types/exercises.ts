@@ -1,54 +1,82 @@
-export type Choice = {
+import { BaseEntity, NamedEntity, ExerciseType, ResultBase, ScoringInfo } from './base';
+
+/**
+ * Represents a choice in a multiple-choice exercise
+ */
+export interface Choice {
   id: string;
   text: string;
   isCorrect: boolean;
   explanation?: string;
-};
+}
 
-export type Exercise = {
+/**
+ * Matching pair used in matching exercises
+ */
+export interface MatchingPair {
+  left: string;
+  right: string;
+}
+
+/**
+ * Reorder item used in reordering exercises
+ */
+export interface ReorderItem {
   id: string;
+  text: string;
+}
+
+/**
+ * Represents a single exercise of any type
+ */
+export interface Exercise extends BaseEntity {
   levelId: string;
-  type: 'multiple-choice' | 'fill-in-blank' | 'matching' | 'reorder';
+  type: ExerciseType;
   question: string;
   instruction: string;
+  explanation: string;
+  
+  // Type-specific properties
   choices?: Choice[];
   correctAnswer?: string;
   fillOptions?: string[];
-  matchingPairs?: {left: string, right: string}[];
-  reorderItems?: {id: string, text: string}[];
+  matchingPairs?: MatchingPair[];
+  reorderItems?: ReorderItem[];
   correctOrder?: string[];
-  explanation: string;
-};
+}
 
-export type ExerciseSet = {
-  id: string;
+/**
+ * A set of exercises that form a complete learning unit
+ */
+export interface ExerciseSet extends NamedEntity {
   levelId: string;
-  title: string;
-  description: string;
   exercises: Exercise[];
   requiredScore: number;
   timeLimit?: number;
-};
+}
 
-export type ExerciseProgress = {
+/**
+ * Tracks progress for a single exercise
+ */
+export interface ExerciseProgress extends ResultBase {
   exerciseId: string;
-  completed: boolean;
-  correct: boolean;
-  attempts: number;
-  timeSpent: number;
-};
+  isCompleted: boolean;
+}
 
-export type ExerciseSetResults = {
+/**
+ * Results for a completed exercise set
+ */
+export interface ExerciseSetResult extends ScoringInfo {
   setId: string;
   levelId: string;
-  totalQuestions: number;
+  totalExercises: number;
   correctAnswers: number;
-  scorePercentage: number;
-  completed: boolean;
-  passedThreshold: boolean;
-  exercises: {
+  isCompleted: boolean;
+  exercises: Array<{
     id: string;
-    correct: boolean;
+    isCorrect: boolean;
     attempts: number;
-  }[];
-};
+  }>;
+  startedAt: number;
+  completedAt: number;
+}
