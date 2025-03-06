@@ -46,6 +46,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, []);
   
+  // No duplicate clearExerciseCache function - we'll use useLessonStore.getState().clearAllExercises() directly
+
   // Load user data from Supabase (simplified)
   const loadUserData = useMemo(() => {
     return async (): Promise<void> => {
@@ -53,6 +55,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!user) return;
       
       try {
+        // First, aggressively clear exercise cache
+        useLessonStore.getState().clearAllExercises();
+        
         // Load all data in parallel for better performance
         const [progressData, writingData, userProfile] = await Promise.all([
           supabaseService.getProgress('AuthContext.loadUserData'),
@@ -82,10 +87,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         
         // Start preloading lessons in background
         setTimeout(() => {
+          console.log('Initiating background preloading of lessons after login');
           useLessonStore.getState().preloadAllLessons().catch(err => {
-            console.warn('Background lesson preloading failed:', err);
+            console.error('Background lesson preloading failed after login:', err);
           });
-        }, 2000); // Slight delay to prioritize UI loading
+        }, 3000); // Delay to prioritize UI loading
       } catch (error) {
         console.error('Error loading user data:', error);
       }
@@ -167,6 +173,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         clearTimeout(window['_syncTimer']);
         window['_syncTimer'] = null;
       }
+      
+      // Clear all cached exercises to ensure the next login gets fresh content
+      console.log('Clearing all exercises on sign out');
+      useLessonStore.getState().clearAllExercises();
       
       // Reset stores before sign out to prevent any last-minute sync attempts
       resetProgress();

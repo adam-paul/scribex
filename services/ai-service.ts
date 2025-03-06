@@ -22,6 +22,17 @@ function isAiEnabled(): boolean {
   return ENABLE_AI_FEATURES && OPENAI_API_KEY !== 'dummy-api-key';
 }
 
+// Helper function to validate if we can make API calls
+function validateAiAccess(): void {
+  if (!ENABLE_AI_FEATURES) {
+    throw new Error('AI features are disabled in application configuration');
+  }
+  
+  if (OPENAI_API_KEY === 'dummy-api-key') {
+    throw new Error('Invalid or missing OpenAI API key');
+  }
+}
+
 // Log AI status on initialization
 console.log(`AI Features: ${isAiEnabled() ? 'ENABLED' : 'DISABLED'}`);
 
@@ -37,19 +48,25 @@ const MAX_REQUESTS_PER_MINUTE = 30;
 const REQUEST_WINDOW_MS = 60 * 1000; // 1 minute
 
 // Rate limiting check
-async function checkRateLimit(endpoint: string): Promise<boolean> {
+async function checkRateLimit(endpoint: string): Promise<void> {
   const now = Date.now();
-  // Remove requests older than the window
-  const recentRequests = apiRequestLog.filter(req => 
-    now - req.timestamp < REQUEST_WINDOW_MS
-  );
   
-  // Update request log
-  apiRequestLog.length = 0;
-  apiRequestLog.push(...recentRequests, {timestamp: now, endpoint});
+  console.log(`Rate limit check for ${endpoint}, current count: ${apiRequestLog.length}`);
+  
+  // Remove requests older than the window WITHOUT clearing the array first
+  const currentTime = Date.now();
+  while (apiRequestLog.length > 0 && currentTime - apiRequestLog[0].timestamp >= REQUEST_WINDOW_MS) {
+    apiRequestLog.shift(); // Remove oldest request
+  }
+  
+  // Add current request
+  apiRequestLog.push({timestamp: now, endpoint});
   
   // Check if we're over the limit
-  return recentRequests.length < MAX_REQUESTS_PER_MINUTE;
+  if (apiRequestLog.length > MAX_REQUESTS_PER_MINUTE) {
+    console.error(`Rate limit exceeded: ${apiRequestLog.length} requests in the last minute`);
+    throw new Error(`Rate limit exceeded (${MAX_REQUESTS_PER_MINUTE} requests per minute). Please try again later.`);
+  }
 }
 
 type AIRequestOptions = {
@@ -61,21 +78,20 @@ type AIRequestOptions = {
 
 // Function to generate an exercise based on the level and topic
 export async function generateExercise(levelId: string, topic: string): Promise<Exercise> {
-  // Check if AI features are enabled
-  if (!isAiEnabled()) {
-    console.log('AI features disabled. Using fallback exercise.');
-    return getFallbackExercise(levelId, topic);
-  }
-  
   try {
-    // Check rate limit
-    if (!(await checkRateLimit('generateExercise'))) {
-      throw new Error('Rate limit exceeded. Please try again later.');
-    }
+    // Ensure AI is properly configured
+    validateAiAccess();
+    
+    // Check rate limiting
+    await checkRateLimit('generateExercise');
     
     // Get level information for context
     const level = LEVELS.find(l => l.id === levelId);
-    const levelType = level?.type || 'mechanics';
+    if (!level) {
+      throw new Error(`Level not found: ${levelId}`);
+    }
+    
+    const levelType = level.type;
     
     // Create prompt based on level type and topic
     const prompt = `Create a multiple-choice exercise about ${topic} for students 
@@ -102,8 +118,15 @@ export async function generateExercise(levelId: string, topic: string): Promise<
     });
     
     // Parse response
-    const content = response.choices[0]?.message?.content || '';
+    const content = response.choices[0]?.message?.content;
+    if (!content) {
+      throw new Error('Empty response from OpenAI API');
+    }
+    
     const exerciseData = JSON.parse(content);
+    if (!exerciseData.question || !exerciseData.choices) {
+      throw new Error('Incomplete exercise data from API');
+    }
     
     // Format response into our Exercise type
     return {
@@ -122,68 +145,31 @@ export async function generateExercise(levelId: string, topic: string): Promise<
     };
   } catch (error) {
     console.error('Error generating exercise:', error);
-    return getFallbackExercise(levelId, topic);
+    throw new Error(`Failed to generate exercise: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }
 
-// Helper function for fallback exercises when AI is unavailable
-function getFallbackExercise(levelId: string, topic: string): Exercise {
-  return {
-    id: `generated-${Date.now()}`,
-    levelId: levelId,
-    type: 'multiple-choice',
-    question: `Question about ${topic}`,
-    instruction: `Select the best answer related to ${topic}`,
-    choices: [
-      {
-        id: '1',
-        text: 'First option (correct)',
-        isCorrect: true,
-        explanation: 'This is the correct answer.',
-      },
-      {
-        id: '2',
-        text: 'Second option',
-        isCorrect: false,
-        explanation: 'This is incorrect.',
-      },
-      {
-        id: '3',
-        text: 'Third option',
-        isCorrect: false,
-        explanation: 'This is incorrect.',
-      },
-      {
-        id: '4',
-        text: 'Fourth option',
-        isCorrect: false,
-        explanation: 'This is incorrect.',
-      }
-    ],
-    explanation: 'AI features are currently disabled. Using pre-generated exercise.',
-  };
-}
+// Fallback functions have been completely removed
 
 // Function to generate a complete exercise set with more structured options
 export async function generateExerciseSet(options: AIRequestOptions): Promise<ExerciseSet> {
-  const { levelId, count = 4 } = options; // Default to 4 exercises per set
-  
-  // Get level information
-  const level = LEVELS.find(l => l.id === levelId);
-  const levelType = level?.type || 'mechanics';
-  const difficulty = level?.difficulty || 1;
-  
-  // Check if AI features are enabled
-  if (!isAiEnabled()) {
-    console.log('AI features disabled. Using fallback exercise set.');
-    return getFallbackExerciseSet(levelId, levelType, count);
-  }
+  const { levelId, count = 5 } = options; // Default to 5 exercises per set (same as MAX_EXERCISES_PER_LEVEL)
   
   try {
-    // Check rate limit
-    if (!(await checkRateLimit('generateExerciseSet'))) {
-      throw new Error('Rate limit exceeded. Please try again later.');
+    // Ensure AI is properly configured
+    validateAiAccess();
+    
+    // Get level information
+    const level = LEVELS.find(l => l.id === levelId);
+    if (!level) {
+      throw new Error(`Level not found: ${levelId}`);
     }
+    
+    const levelType = level.type;
+    const difficulty = level.difficulty;
+    
+    // Check rate limit
+    await checkRateLimit('generateExerciseSet');
     
     console.log(`Generating AI exercise set for level: ${levelId}, type: ${levelType}, count: ${count}`);
     
@@ -205,31 +191,32 @@ export async function generateExerciseSet(options: AIRequestOptions): Promise<Ex
     
     // Generate AI exercises
     for (let i = 0; i < count; i++) {
-      try {
-        // Choose exercise type - cycle through the types
-        const exerciseType = exerciseTypes[i % exerciseTypes.length];
-        
-        // Choose a topic
-        const topic = topics[Math.floor(Math.random() * topics.length)];
-        
-        // Generate an AI exercise with specific type
-        const aiExercise = await generateAIExerciseWithType(levelId, levelType, topic, exerciseType, difficulty);
-        
-        exercises.push(aiExercise);
-      } catch (error) {
-        console.error(`Error generating exercise ${i+1}:`, error);
-        // If one exercise fails, continue with the others
+      // Choose exercise type - cycle through the types
+      const exerciseType = exerciseTypes[i % exerciseTypes.length];
+      
+      // Choose a topic
+      const topic = topics[Math.floor(Math.random() * topics.length)];
+      
+      // Check rate limit before each exercise generation
+      await checkRateLimit(`generateExerciseSet-${i}`);
+      
+      // Generate an AI exercise with specific type
+      const aiExercise = await generateAIExerciseWithType(levelId, levelType, topic, exerciseType, difficulty);
+      exercises.push(aiExercise);
+      
+      // Small delay between requests to avoid overwhelming the API
+      if (i < count - 1) {
+        await new Promise(resolve => setTimeout(resolve, 200));
       }
     }
     
-    // If we couldn't generate any exercises, fall back to static ones
     if (exercises.length === 0) {
       throw new Error('Failed to generate any exercises');
     }
     
     // Get titles and descriptions based on level
-    const title = getLevelTitle(levelId);
-    const description = getLevelDescription(levelId);
+    const title = level.title || `Exercise Set for ${levelId}`;
+    const description = level.description || `Practice exercises for ${levelType}`;
     
     return {
       id: `set-${levelId}-${Date.now()}`,
@@ -241,12 +228,12 @@ export async function generateExerciseSet(options: AIRequestOptions): Promise<Ex
     };
   } catch (error) {
     console.error('Error generating exercise set:', error);
-    return getFallbackExerciseSet(levelId, levelType, count);
+    throw new Error(`Failed to generate exercise set: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }
 
 // Generate an AI exercise with a specific type
-async function generateAIExerciseWithType(
+export async function generateAIExerciseWithType(
   levelId: string, 
   levelType: string,
   topic: string, 
@@ -254,6 +241,12 @@ async function generateAIExerciseWithType(
   difficulty: number
 ): Promise<Exercise> {
   try {
+    // Ensure AI is properly configured
+    validateAiAccess();
+    
+    // Check rate limit
+    await checkRateLimit(`generateExerciseWithType-${exerciseType}`);
+    
     // Build prompt based on exercise type
     let systemPrompt = `You are an educational assistant creating a ${exerciseType} exercise about ${topic} for students learning writing skills related to ${levelType} at difficulty level ${difficulty}/5.`;
     let userPrompt = "";
@@ -325,8 +318,7 @@ async function generateAIExerciseWithType(
         break;
         
       default:
-        // Default to multiple-choice if type is not recognized
-        return generateExercise(levelId, topic);
+        throw new Error(`Unsupported exercise type: ${exerciseType}`);
     }
     
     // Call OpenAI API
@@ -348,8 +340,40 @@ async function generateAIExerciseWithType(
     });
     
     // Parse response
-    const content = response.choices[0]?.message?.content || '';
+    const content = response.choices[0]?.message?.content;
+    if (!content) {
+      throw new Error('Empty response from OpenAI API');
+    }
+    
     const exerciseData = JSON.parse(content);
+    
+    // Validate the response based on exercise type
+    if (!exerciseData.question || !exerciseData.instruction || !exerciseData.explanation) {
+      throw new Error(`Incomplete exercise data: missing required fields for ${exerciseType}`);
+    }
+    
+    switch (exerciseType) {
+      case 'multiple-choice':
+        if (!exerciseData.choices || !Array.isArray(exerciseData.choices) || exerciseData.choices.length < 2) {
+          throw new Error('Invalid multiple choice data: missing or insufficient choices');
+        }
+        break;
+      case 'fill-in-blank':
+        if (!exerciseData.correctAnswer || !exerciseData.fillOptions) {
+          throw new Error('Invalid fill-in-blank data: missing correctAnswer or fillOptions');
+        }
+        break;
+      case 'matching':
+        if (!exerciseData.matchingPairs || !Array.isArray(exerciseData.matchingPairs)) {
+          throw new Error('Invalid matching data: missing or invalid matchingPairs');
+        }
+        break;
+      case 'reorder':
+        if (!exerciseData.reorderItems || !exerciseData.correctOrder) {
+          throw new Error('Invalid reorder data: missing reorderItems or correctOrder');
+        }
+        break;
+    }
     
     // Format to Exercise type based on exercise type
     const baseExercise = {
@@ -393,234 +417,11 @@ async function generateAIExerciseWithType(
     }
   } catch (error) {
     console.error(`Error generating ${exerciseType} exercise:`, error);
-    // Fall back to simpler exercise
-    return generateExercise(levelId, topic);
+    throw new Error(`Failed to generate ${exerciseType} exercise: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }
 
-// Fallback exercise set when AI is unavailable
-function getFallbackExerciseSet(levelId: string, levelType: string, count: number): ExerciseSet {
-  console.log(`Using fallback exercise set for ${levelId}`);
-  
-  // Create a set of fallback exercises based on level type
-  const exercises: Exercise[] = [];
-  
-  if (levelType === 'mechanics') {
-    // Basic sentence structure fallbacks
-    exercises.push({
-      id: `${levelId}-ex-1`,
-      levelId,
-      type: 'multiple-choice',
-      question: 'Which of the following is a complete sentence?',
-      instruction: 'Select the option that forms a complete thought with both a subject and a predicate.',
-      choices: [
-        {
-          id: '1',
-          text: 'Running through the park.',
-          isCorrect: false,
-          explanation: 'This is a sentence fragment - it lacks a subject.',
-        },
-        {
-          id: '2',
-          text: 'The energetic dog ran through the park.',
-          isCorrect: true,
-          explanation: 'This is a complete sentence with a subject (dog) and predicate (ran).',
-        },
-        {
-          id: '3',
-          text: 'When the sun rises.',
-          isCorrect: false,
-          explanation: 'This is a dependent clause - it cannot stand alone.',
-        },
-        {
-          id: '4',
-          text: 'Beautiful and peaceful.',
-          isCorrect: false,
-          explanation: 'These are just adjectives without a subject or predicate.',
-        },
-      ],
-      explanation: 'A complete sentence must have a subject (who/what) and a predicate (action/state) to express a complete thought.',
-    });
-    
-    // Fill-in-blank exercise
-    exercises.push({
-      id: `${levelId}-ex-2`,
-      levelId,
-      type: 'fill-in-blank',
-      question: 'Complete this sentence with the correct verb form: "Everyone in the classroom _____ excited about the field trip."',
-      instruction: 'Type the correct verb that agrees with the subject "Everyone".',
-      correctAnswer: 'is',
-      fillOptions: ['is', 'are', 'were', 'be'],
-      explanation: 'The subject "Everyone" is singular, so it takes the singular verb "is". Even though we may be referring to many people, collective nouns like "everyone" are treated as singular in English.',
-    });
-    
-  } else if (levelType === 'sequencing') {
-    // Paragraph transition fallbacks
-    exercises.push({
-      id: `${levelId}-ex-1`,
-      levelId,
-      type: 'multiple-choice',
-      question: 'Which sentence best serves as a transition between paragraphs about climate change and conservation efforts?',
-      instruction: 'Select the sentence that creates the smoothest transition.',
-      choices: [
-        {
-          id: '1',
-          text: 'Conservation is important.',
-          isCorrect: false,
-          explanation: 'This is too abrupt and doesn\'t connect the topics.',
-        },
-        {
-          id: '2',
-          text: 'With these climate effects in mind, people have developed various conservation strategies to address the damage.',
-          isCorrect: true,
-          explanation: 'This sentence connects the climate effects to conservation efforts, creating a logical bridge.',
-        },
-        {
-          id: '3',
-          text: 'There are many types of conservation efforts.',
-          isCorrect: false,
-          explanation: 'This doesn\'t explicitly connect to the previous topic of climate change.',
-        },
-        {
-          id: '4',
-          text: 'On a different note, conservation is another environmental topic worth discussing.',
-          isCorrect: false,
-          explanation: 'This transition suggests the topics are unrelated when they are actually connected.',
-        },
-      ],
-      explanation: 'Good transitions connect ideas between paragraphs by showing relationships between the topics.',
-    });
-    
-    // Matching exercise for transitions
-    exercises.push({
-      id: `${levelId}-ex-3`,
-      levelId,
-      type: 'matching',
-      question: 'Match each transition word or phrase with its purpose in writing.',
-      instruction: 'For each transition term on the left, identify its function on the right.',
-      matchingPairs: [
-        {left: 'However', right: 'To show contrast'},
-        {left: 'Therefore', right: 'To show result or conclusion'},
-        {left: 'For example', right: 'To provide an illustration'},
-        {left: 'Similarly', right: 'To show comparison'}
-      ],
-      explanation: 'Transition words and phrases are essential for guiding readers through your writing by showing the relationships between ideas.',
-    });
-    
-  } else { // Voice exercises
-    exercises.push({
-      id: `${levelId}-ex-1`,
-      levelId,
-      type: 'multiple-choice',
-      question: 'Which sentence best demonstrates a formal academic voice?',
-      instruction: 'Select the option that would be most appropriate in a research paper.',
-      choices: [
-        {
-          id: '1',
-          text: 'The experiment was a total disaster and didn\'t prove anything useful.',
-          isCorrect: false,
-          explanation: 'This uses informal language and subjective judgment that is inappropriate for academic writing.',
-        },
-        {
-          id: '2',
-          text: 'The results of the experiment failed to support the hypothesis, suggesting alternative factors may be involved.',
-          isCorrect: true,
-          explanation: 'This uses formal, objective language appropriate for academic writing.',
-        },
-        {
-          id: '3',
-          text: 'OMG, the experiment didn\'t work out at all!',
-          isCorrect: false,
-          explanation: 'This uses slang and exclamation that are inappropriate for academic writing.',
-        },
-        {
-          id: '4',
-          text: 'I think the experiment probably didn\'t work because we made some mistakes.',
-          isCorrect: false,
-          explanation: 'This uses first-person and vague language that is less appropriate for formal academic writing.',
-        },
-      ],
-      explanation: 'Academic voice is characterized by formal, objective, and precise language that avoids colloquialisms and emotional expressions.',
-    });
-    
-    // Fill-in-blank exercise for tone
-    exercises.push({
-      id: `${levelId}-ex-3`,
-      levelId,
-      type: 'fill-in-blank',
-      question: 'Complete this sentence with the most appropriate word for a persuasive essay: "This policy would be _____ for our community\'s future."',
-      instruction: 'Choose a word with positive connotation that would strengthen a persuasive argument.',
-      correctAnswer: 'beneficial',
-      fillOptions: ['beneficial', 'ok', 'fine', 'alright'],
-      explanation: 'In persuasive writing, word choice matters tremendously. Strong words with positive or negative connotations can influence how readers perceive your argument.',
-    });
-  }
-  
-  // Add a generic reorder exercise
-  exercises.push({
-    id: `${levelId}-ex-4`,
-    levelId,
-    type: 'reorder',
-    question: 'Arrange these words to form a grammatically correct sentence.',
-    instruction: 'Move the items up or down to create a properly structured sentence.',
-    reorderItems: [
-      {id: 'item1', text: 'The excited students'},
-      {id: 'item2', text: 'quickly gathered'},
-      {id: 'item3', text: 'their books and supplies'},
-      {id: 'item4', text: 'before leaving for the field trip.'}
-    ],
-    correctOrder: ['item1', 'item2', 'item3', 'item4'],
-    explanation: 'A well-formed English sentence typically follows the subject-verb-object pattern, with modifiers and clauses adding detail in specific positions.',
-  });
-  
-  // Ensure we have the requested number of exercises
-  while (exercises.length < count) {
-    // Duplicate one of the existing exercises with a modified ID
-    const sourceExercise = exercises[Math.floor(Math.random() * exercises.length)];
-    const duplicateExercise = {
-      ...sourceExercise,
-      id: `${sourceExercise.id}-copy-${exercises.length}`
-    };
-    exercises.push(duplicateExercise);
-  }
-  
-  // Get titles and descriptions based on level
-  const title = getLevelTitle(levelId);
-  const description = getLevelDescription(levelId);
-  
-  return {
-    id: `set-${levelId}-${Date.now()}`,
-    levelId,
-    title,
-    description,
-    exercises: exercises.slice(0, count), // Ensure we only return the requested count
-    requiredScore: 90, // PRD requirement: 90% accuracy to proceed
-  };
-}
 
-// Helper function to get level titles
-function getLevelTitle(levelId: string): string {
-  const titles: Record<string, string> = {
-    'mechanics-1': 'Basic Sentence Structure',
-    'mechanics-2': 'Punctuation Mastery',
-    'sequencing-1': 'Paragraph Flow',
-    'voice-1': 'Finding Your Voice',
-  };
-  
-  return titles[levelId] || `Exercise Set for ${levelId}`;
-}
-
-// Helper function to get level descriptions
-function getLevelDescription(levelId: string): string {
-  const descriptions: Record<string, string> = {
-    'mechanics-1': 'Learn to identify complete sentences and their components.',
-    'mechanics-2': 'Master proper punctuation to enhance clarity in your writing.',
-    'sequencing-1': 'Create smooth transitions between ideas in your paragraphs.',
-    'voice-1': 'Develop your unique writing style while maintaining clarity.',
-  };
-  
-  return descriptions[levelId] || 'Complete these exercises to advance your writing skills.';
-}
 
 // Interface for structured writing feedback
 export interface WritingFeedback {
@@ -646,11 +447,8 @@ export async function getWritingFeedback(text: string): Promise<WritingFeedback>
     };
   }
   
-  // Check if AI features are enabled
-  if (!isAiEnabled()) {
-    console.log('AI features disabled. Using fallback feedback.');
-    return getFallbackFeedback();
-  }
+  // Ensure AI features are properly configured
+  validateAiAccess();
   
   try {
     // Check rate limit
@@ -702,30 +500,10 @@ export async function getWritingFeedback(text: string): Promise<WritingFeedback>
     };
   } catch (error) {
     console.error('Error getting writing feedback:', error);
-    return getFallbackFeedback();
+    throw new Error(`Failed to generate writing feedback: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }
 
-// Helper function for fallback feedback when AI is unavailable
-function getFallbackFeedback(): WritingFeedback {
-  return {
-    score: 70,
-    grammarIssues: [],
-    styleComments: ['Style analysis unavailable in offline mode'],
-    strengthsPoints: ['Good effort in completing this writing task'],
-    improvementPoints: ['AI feedback is currently disabled. Your writing has been saved.'],
-    overallFeedback: "AI writing feedback is currently disabled. Please check your API key configuration."
-  };
-}
-
-// Default prompts to use when AI is unavailable
-const DEFAULT_PROMPTS = [
-  "Describe a character who discovers an unusual ability",
-  "Write about a journey that changes someone's perspective",
-  "Create a scene where two people with opposing views find common ground",
-  "Imagine a world where a common technology never existed",
-  "Write about a misunderstanding that leads to an unexpected friendship"
-];
 
 // Function to generate writing prompts when stuck
 export async function getWritersBlockPrompts(
@@ -736,11 +514,8 @@ export async function getWritersBlockPrompts(
     userPreferences?: string[];
   }
 ): Promise<string[]> {
-  // Check if AI features are enabled
-  if (!isAiEnabled()) {
-    console.log('AI features disabled. Using default writing prompts.');
-    return getContextualizedDefaultPrompts(context);
-  }
+  // Ensure AI features are properly configured
+  validateAiAccess();
 
   try {
     // Check rate limit
@@ -748,9 +523,9 @@ export async function getWritersBlockPrompts(
       throw new Error('Rate limit exceeded. Please try again later.');
     }
     
-    // If no context, return default prompts
+    // Even with no context, we should still generate AI prompts
     if (!context || Object.keys(context).length === 0) {
-      return DEFAULT_PROMPTS;
+      context = { topic: 'creative writing' };
     }
     
     // Extract context
@@ -814,54 +589,16 @@ export async function getWritersBlockPrompts(
       })
       .filter(line => line.length > 10 && line.length < 200); // Filter lines that are too short or too long
     
-    return promptLines.length > 0 ? promptLines : DEFAULT_PROMPTS;
+    if (promptLines.length === 0) {
+      throw new Error('Failed to generate any valid writing prompts');
+    }
+    return promptLines;
   } catch (error) {
     console.error('Error generating prompts:', error);
-    return getContextualizedDefaultPrompts(context);
+    throw new Error(`Failed to generate writing prompts: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }
 
-// Helper function to customize default prompts based on context
-function getContextualizedDefaultPrompts(context?: { 
-  topic?: string;
-  genre?: string;
-  currentText?: string;
-  userPreferences?: string[];
-}): string[] {
-  if (!context) return DEFAULT_PROMPTS;
-  
-  // Basic genre-specific default prompts if no AI available
-  const { genre } = context;
-  
-  if (genre === 'Story') {
-    return [
-      "Write about a character who discovers a hidden door in their house",
-      "Create a story about someone who can suddenly understand animal language",
-      "Describe a day when everything goes wrong, but ends with an unexpected gift",
-      "Write about two strangers meeting during an unusual event",
-      "Create a story about finding an object that doesn't belong in this time"
-    ];
-  } else if (genre === 'Essay') {
-    return [
-      "Discuss how technology has changed education in the last decade",
-      "Explore the relationship between nature and mental health",
-      "Analyze the impact of social media on modern communication",
-      "Compare two different approaches to solving an environmental problem",
-      "Argue for or against the importance of learning multiple languages"
-    ];
-  } else if (genre === 'Poetry') {
-    return [
-      "Write a poem about the changing seasons",
-      "Create a poem that explores a strong emotion without naming it",
-      "Write about an everyday object from an unusual perspective",
-      "Create a poem about a significant memory",
-      "Write a poem that uses colors to express feelings"
-    ];
-  }
-  
-  // Return default prompts if no customization applied
-  return DEFAULT_PROMPTS;
-}
 
 // Interface for detailed writing score
 export interface WritingScore {
@@ -895,11 +632,8 @@ export async function scoreWriting(
     };
   }
   
-  // Check if AI features are enabled
-  if (!isAiEnabled()) {
-    console.log('AI features disabled. Using default scoring.');
-    return getDefaultScoring(options?.genre);
-  }
+  // Ensure AI features are properly configured 
+  validateAiAccess();
   
   try {
     // Check rate limit
@@ -963,23 +697,7 @@ export async function scoreWriting(
     };
   } catch (error) {
     console.error('Error scoring writing:', error);
-    return getDefaultScoring(options?.genre);
+    throw new Error(`Failed to score writing: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }
 
-// Helper function for default scoring when AI is unavailable
-function getDefaultScoring(genre?: string): WritingScore {
-  const genreFeedback = genre ? 
-    `Your ${genre.toLowerCase()} has been saved.` : 
-    'Your writing has been saved.';
-  
-  return {
-    overall: 70,
-    mechanics: 70,
-    organization: 70,
-    creativity: 70,
-    clarity: 70,
-    scores: {},
-    feedback: `AI writing evaluation is currently disabled. ${genreFeedback}`
-  };
-}

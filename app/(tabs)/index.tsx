@@ -83,8 +83,8 @@ export default function MapScreen() {
                               progress.mechanicsProgress : 0 :
                           level.type === 'sequencing' ? progress.sequencingProgress : 
                           level.type === 'voice' ? progress.voiceProgress : 0,
-                completed: progress.completedLevels.includes(level.id),
-                unlocked: progress.unlockedLevels.includes(level.id),
+                isCompleted: progress.completedLevels.includes(level.id),
+                isUnlocked: progress.unlockedLevels.includes(level.id),
               }}
               onPress={() => handleLevelPress(level.id)}
               themeColors={{

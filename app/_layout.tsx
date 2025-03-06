@@ -83,12 +83,14 @@ function RootLayoutNav() {
     const handleAppStateChange = (nextAppState: AppStateStatus) => {
       if (nextAppState === 'active') {
         // App has come to the foreground
-        // Resume any pending lesson generations
+        // Resume any pending lesson generations after a short delay
+        console.log('App returned to foreground, will resume exercise preloading');
         setTimeout(() => {
+          console.log('Initiating background preloading after app resume');
           useLessonStore.getState().preloadAllLessons().catch(err => {
-            console.warn('Background lesson preloading failed on app resume:', err);
+            console.error('Background lesson preloading failed on app resume:', err);
           });
-        }, 1000);
+        }, 2000);
       }
     };
     
