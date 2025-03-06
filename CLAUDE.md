@@ -4,6 +4,18 @@
 
 The first and last action in every development session MUST be to consult the `.claude/` directory. This directory serves as a universal Claude layer and the fundamental source of truth for all codebase information.
 
+## CRITICAL PROTOCOL: The Claude Loop
+
+In addition to the Claude layer described above, a Claude Loop describes the specific set of actions you must take when attempting to solve the user's requests. The Claude Loop looks like this: 
+
+1. Consult your Claude Layer to gain a comprehensive understanding of the codebase. 
+2. Map the user's requests onto the appropriate sections of the Claude Layer in your context. 
+3. Now establish a plan to resolve the user's request(s). 
+4. Resolve the request. 
+5. Ask the user if the request was resolved.
+6. If so, consult your Claude Layer again and see if anything needs to be updated, added, changed, or removed based on this Claude Loop. 
+7. If not, request to begin the Claude Loop again, and do so if the user approves. 
+
 ### .claude Directory Structure
 
 The `.claude/` directory contains these specialized components:
