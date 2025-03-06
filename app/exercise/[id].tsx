@@ -6,27 +6,11 @@ import { AlertCircle, Move } from 'lucide-react-native';
 import { colors } from '@/constants/colors';
 import { Button } from '@/components/Button';
 import { Card } from '@/components/Card';
-import { ExerciseSet, Exercise } from '@/types';
+import { ExerciseSet, Exercise, ExerciseSetResult } from '@/types';
 import { useProgressStore } from '@/stores/progress-store';
 import { useLessonStore } from '@/stores/lesson-store';
 import { LEVELS } from '@/constants/levels';
 import { MAX_EXERCISES_PER_LEVEL } from '@/constants/exercises';
-
-// Define the interface locally since it doesn't match the one in types
-interface ExerciseSetResults {
-  setId: string;
-  levelId: string;
-  totalQuestions: number;
-  correctAnswers: number;
-  scorePercentage: number;
-  completed: boolean;
-  passedThreshold: boolean;
-  exercises: Array<{
-    id: string;
-    correct: boolean;
-    attempts: number;
-  }>;
-}
 
 export default function ExerciseScreen() {
   const { id } = useLocalSearchParams();
@@ -37,18 +21,24 @@ export default function ExerciseScreen() {
   const [reorderItems, setReorderItems] = useState<{id: string, text: string}[]>([]);
   const [showExplanation, setShowExplanation] = useState(false);
   const [exerciseSet, setExerciseSet] = useState<ExerciseSet | null>(null);
-  const [pendingExercises, setPendingExercises] = useState<Exercise[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [consecutiveCorrectAnswers, setConsecutiveCorrectAnswers] = useState(0);
-  const [results, setResults] = useState<ExerciseSetResults>({
+  const [results, setResults] = useState<ExerciseSetResult>({
     setId: '',
     levelId: typeof id === 'string' ? id : '',
-    totalQuestions: 0,
+    totalExercises: MAX_EXERCISES_PER_LEVEL,
     correctAnswers: 0,
-    scorePercentage: 0,
-    completed: false,
-    passedThreshold: false,
-    exercises: [],
+    isCompleted: false,
+    exercises: Array(MAX_EXERCISES_PER_LEVEL).fill(null).map((_, i) => ({
+      id: `pending-${i}`,
+      isCorrect: false,
+      attempts: 0
+    })),
+    startedAt: Date.now(),
+    completedAt: 0,
+    score: 0,
+    isPassed: false,
+    requiredScore: 90
   });
 
   // Progress store methods
@@ -60,6 +50,22 @@ export default function ExerciseScreen() {
     getNextLevel,
     updateCategoryProgress 
   } = progressStore;
+
+  // Function to reset exercise state
+  const resetExerciseState = (nextExercise?: Exercise) => {
+    setSelectedChoice(null);
+    setTextAnswer('');
+    setMatchingAnswers(new Map());
+    setShowExplanation(false);
+    
+    // Initialize reorder items if needed
+    if (nextExercise?.type === 'reorder' && nextExercise?.reorderItems) {
+      const shuffled = [...nextExercise.reorderItems].sort(() => Math.random() - 0.5);
+      setReorderItems(shuffled);
+    } else {
+      setReorderItems([]);
+    }
+  };
 
   // Load exercise set on mount
   useEffect(() => {
@@ -86,25 +92,18 @@ export default function ExerciseScreen() {
         const lessonStore = useLessonStore.getState();
         let exerciseData = lessonStore.createExerciseSetFromCachedExercises(id);
         
-        // If we don't have enough exercises, start preloading
+        // If we don't have any exercises at all or not enough exercises
         if (!exerciseData || exerciseData.exercises.length < MAX_EXERCISES_PER_LEVEL) {
-          console.log(`Requesting preload of exercises for level ${id}`);
-          // This happens in the background
-          lessonStore.preloadExerciseForLevel(id).catch(err => {
-            console.warn(`Background exercise preload failed: ${err.message}`);
-          });
+          const exercisesNeeded = !exerciseData ? MAX_EXERCISES_PER_LEVEL : MAX_EXERCISES_PER_LEVEL - exerciseData.exercises.length;
+          console.log(`Need to generate ${exercisesNeeded} exercises for level ${id}`);
           
-          // If we have no exercises at all, we need to wait for at least one
-          if (!exerciseData) {
-            console.log('Waiting for first exercise to be generated...');
-            const exercise = await lessonStore.preloadExerciseForLevel(id);
-            if (!exercise) {
-              throw new Error('Failed to generate initial exercise');
-            }
+          // Start background generation for all needed exercises
+          lessonStore.preloadRemainingExercises(id, exercisesNeeded);
+          
+          // Keep checking for exercises until we have at least one
+          while (!exerciseData || exerciseData.exercises.length === 0) {
+            await new Promise(resolve => setTimeout(resolve, 1000)); // Wait a second
             exerciseData = lessonStore.createExerciseSetFromCachedExercises(id);
-            if (!exerciseData) {
-              throw new Error('Failed to create exercise set after generating initial exercise');
-            }
           }
         }
         
@@ -113,7 +112,6 @@ export default function ExerciseScreen() {
         
         // Initialize the first exercise's state if it's a reorder type
         if (exerciseData.exercises[0]?.type === 'reorder' && exerciseData.exercises[0]?.reorderItems) {
-          // Shuffle the items for the reorder exercise
           const shuffled = [...exerciseData.exercises[0].reorderItems].sort(() => Math.random() - 0.5);
           setReorderItems(shuffled);
         }
@@ -123,19 +121,32 @@ export default function ExerciseScreen() {
           ...prev,
           setId: exerciseData.id,
           levelId: id,
-          totalQuestions: MAX_EXERCISES_PER_LEVEL,
+          totalExercises: MAX_EXERCISES_PER_LEVEL,
           exercises: Array(MAX_EXERCISES_PER_LEVEL).fill(null).map((_, i) => ({
             id: i < exerciseData.exercises.length ? exerciseData.exercises[i].id : `pending-${i}`,
-            correct: false,
+            isCorrect: false,
             attempts: 0,
           })),
         }));
         
         setIsLoading(false);
-      } catch (error) {
+      } catch (error: any) {
         console.error('Error fetching exercises:', error);
-        Alert.alert('Error', 'Failed to load exercises. Please try again.');
-        router.back();
+        Alert.alert(
+          'Exercise Generation Issue',
+          'We had trouble generating exercises for this level. This could be due to network issues or server load.',
+          [
+            {
+              text: 'Try Again',
+              onPress: () => fetchExercises()
+            },
+            {
+              text: 'Go Back',
+              onPress: () => router.back(),
+              style: 'cancel'
+            }
+          ]
+        );
       }
     };
 
@@ -149,54 +160,34 @@ export default function ExerciseScreen() {
     const exercise = exerciseSet.exercises[currentExerciseIndex];
     if (!exercise) return;
     
-    // Reset previous input states
-    setSelectedChoice(null);
-    setTextAnswer('');
-    setMatchingAnswers(new Map());
-    
-    // Initialize state based on current exercise type
-    if (exercise.type === 'reorder' && exercise.reorderItems) {
-      // Shuffle the items
-      const shuffled = [...exercise.reorderItems].sort(() => Math.random() - 0.5);
-      setReorderItems(shuffled);
-    }
-    
+    resetExerciseState(exercise);
   }, [currentExerciseIndex, exerciseSet]);
 
-  // Add an effect to watch for pending exercises and update the exercise set
+  // Add a new effect to continuously check for newly generated exercises when in loading state
   useEffect(() => {
-    if (!exerciseSet || !isLoading) return;
-
-    // If we're loading and have pending exercises, use the next one
-    if (pendingExercises.length > 0) {
-      const nextPendingExercise = pendingExercises[0];
+    // Only run this effect when we're waiting for the next exercise
+    if (!isLoading || typeof id !== 'string' || !exerciseSet) return;
+    
+    // Create an interval to check for new exercises
+    const checkIntervalId = setInterval(() => {
+      const lessonStore = useLessonStore.getState();
+      const updatedSet = lessonStore.createExerciseSetFromCachedExercises(id);
       
-      // Update the exercise set with the new exercise
-      setExerciseSet(prev => {
-        if (!prev) return prev;
-        const updatedExercises = [...prev.exercises];
-        updatedExercises[currentExerciseIndex + 1] = nextPendingExercise;
-        return {
-          ...prev,
-          exercises: updatedExercises,
-        };
-      });
-      
-      // Remove the used exercise from pending
-      setPendingExercises(prev => prev.slice(1));
-      
-      // Hide loading and move to next question
-      setIsLoading(false);
-      setCurrentExerciseIndex(prev => prev + 1);
-      
-      // Reset state for all exercise types
-      setSelectedChoice(null);
-      setTextAnswer('');
-      setMatchingAnswers(new Map());
-      setReorderItems([]);
-      setShowExplanation(false);
-    }
-  }, [pendingExercises, isLoading, exerciseSet, currentExerciseIndex]);
+      // If we have a new exercise, update the UI
+      if (updatedSet && updatedSet.exercises.length > currentExerciseIndex + 1) {
+        console.log(`Found newly generated exercise ${currentExerciseIndex + 1} for level ${id}, resuming...`);
+        setExerciseSet(updatedSet);
+        setCurrentExerciseIndex(prev => prev + 1);
+        setIsLoading(false);
+        
+        // Reset state for next exercise
+        const nextExercise = updatedSet.exercises[currentExerciseIndex + 1];
+        resetExerciseState(nextExercise);
+      }
+    }, 1000); // Check every second
+    
+    return () => clearInterval(checkIntervalId);
+  }, [isLoading, id, exerciseSet, currentExerciseIndex]);
 
   if (isLoading) {
     return (
@@ -235,7 +226,7 @@ export default function ExerciseScreen() {
     }
 
     // Update consecutive correct answers count
-    const isCorrect = results.exercises[currentExerciseIndex].correct;
+    const isCorrect = results.exercises[currentExerciseIndex].isCorrect;
     if (isCorrect) {
       setConsecutiveCorrectAnswers(prev => prev + 1);
     } else {
@@ -325,20 +316,20 @@ export default function ExerciseScreen() {
     const updatedExercises = [...results.exercises];
     updatedExercises[currentExerciseIndex] = {
       ...updatedExercises[currentExerciseIndex],
-      correct: isCorrect,
+      isCorrect: isCorrect,
       attempts: updatedExercises[currentExerciseIndex].attempts + 1,
     };
     
     // Update overall results
-    const correctAnswers = updatedExercises.filter(e => e.correct).length;
+    const correctAnswers = updatedExercises.filter(e => e.isCorrect).length;
     const attemptedQuestions = updatedExercises.filter(e => e.attempts > 0).length;
-    const scorePercentage = (correctAnswers / MAX_EXERCISES_PER_LEVEL) * 100;
+    const score = (correctAnswers / MAX_EXERCISES_PER_LEVEL) * 100;
     
     setResults({
       ...results,
       exercises: updatedExercises,
       correctAnswers,
-      scorePercentage,
+      score,
     });
     
     setShowExplanation(true);
@@ -346,13 +337,14 @@ export default function ExerciseScreen() {
 
   const finishExerciseSet = () => {
     // Check if score meets required threshold (90% according to PRD)
-    const passedThreshold = results.scorePercentage >= exerciseSet.requiredScore;
+    const isPassed = results.score >= (results.requiredScore || 90);
     
     // Update results
     const finalResults = {
       ...results,
-      completed: true,
-      passedThreshold,
+      isCompleted: true,
+      isPassed,
+      completedAt: Date.now()
     };
     setResults(finalResults);
     
@@ -363,7 +355,7 @@ export default function ExerciseScreen() {
       return;
     }
     
-    if (passedThreshold) {
+    if (isPassed) {
       // Calculate bonus points based on difficulty and consecutive correct answers
       const difficultyBonus = level.difficulty * 5;
       const streakBonus = Math.min(consecutiveCorrectAnswers, 5) * 5; // Cap at 25 bonus points for streak
@@ -377,7 +369,7 @@ export default function ExerciseScreen() {
       
       // Update category progress - implement adaptive difficulty
       // If the user got 100%, boost their progress more
-      const progressMultiplier = results.scorePercentage === 100 ? 1.2 : 1.0;
+      const progressMultiplier = results.score === 100 ? 1.2 : 1.0;
       updateCategoryProgress(
         level.type, 
         Math.round((level.difficulty / 3) * 100 * progressMultiplier)
@@ -388,29 +380,18 @@ export default function ExerciseScreen() {
       if (nextLevelId) {
         unlockLevel(nextLevelId);
         
-        // Start preloading exercises for the next level in background
-        setTimeout(() => {
-          const lessonStore = useLessonStore.getState();
-          const exerciseCount = lessonStore.getExerciseCount(nextLevelId);
-          const exercisesToGenerate = MAX_EXERCISES_PER_LEVEL - exerciseCount;
-          
-          console.log(`Starting background preloading for next level ${nextLevelId}, need ${exercisesToGenerate} exercises`);
-          
-          // Generate exercises one by one with delay
-          for (let i = 0; i < exercisesToGenerate; i++) {
-            setTimeout(() => {
-              lessonStore.preloadExerciseForLevel(nextLevelId).catch(err => {
-                console.warn(`Failed to preload exercise for next level: ${err.message}`);
-              });
-            }, i * 700); // Staggered delay to avoid rate limiting
-          }
-        }, 500);
+        // Immediately preload just the first exercise for the new level
+        console.log(`Level ${level.id} completed. Preloading first exercise for next level ${nextLevelId}`);
+        const lessonStore = useLessonStore.getState();
+        lessonStore.preloadFirstExerciseIfNeeded(nextLevelId).catch(err => {
+          console.warn(`Could not preload first exercise for next level: ${err.message}`);
+        });
       }
       
       // Show success message with bonus points breakdown
       Alert.alert(
         'Level Completed!',
-        `You scored ${Math.round(results.scorePercentage)}%!\n` +
+        `You scored ${Math.round(results.score)}%!\n` +
         `Base points: ${results.correctAnswers * 10}\n` +
         `Difficulty bonus: ${difficultyBonus}\n` +
         `Streak bonus: ${streakBonus}\n` +
@@ -422,7 +403,7 @@ export default function ExerciseScreen() {
       // Show failure message emphasizing the 90% requirement
       Alert.alert(
         'Try Again',
-        `You scored ${Math.round(results.scorePercentage)}%, but need ${exerciseSet.requiredScore}% to advance. The ScribeX system requires 90% accuracy to ensure mastery before moving on.\n\nLet's try again!`,
+        `You scored ${Math.round(results.score)}%, but need ${results.requiredScore}% to advance. The ScribeX system requires 90% accuracy to ensure mastery before moving on.\n\nLet's try again!`,
         [{ text: 'Go Back', onPress: () => router.replace('/(tabs)') }]
       );
     }
@@ -452,14 +433,14 @@ export default function ExerciseScreen() {
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.progress}>
           <Text style={styles.progressText}>
-            Exercise {currentExerciseIndex + 1} of {results.totalQuestions}
+            Exercise {currentExerciseIndex + 1} of {results.totalExercises}
           </Text>
           <View style={styles.progressBar}>
             <View
               style={[
                 styles.progressFill,
                 {
-                  width: `${((currentExerciseIndex + 1) / results.totalQuestions) * 100}%`,
+                  width: `${((currentExerciseIndex + 1) / results.totalExercises) * 100}%`,
                 },
               ]}
             />
@@ -688,15 +669,15 @@ export default function ExerciseScreen() {
             <View style={styles.explanationHeader}>
               <AlertCircle
                 size={24}
-                color={results.exercises[currentExerciseIndex].correct ? colors.success : colors.error}
+                color={results.exercises[currentExerciseIndex].isCorrect ? colors.success : colors.error}
               />
               <Text
                 style={[
                   styles.explanationTitle,
-                  { color: results.exercises[currentExerciseIndex].correct ? colors.success : colors.error },
+                  { color: results.exercises[currentExerciseIndex].isCorrect ? colors.success : colors.error },
                 ]}
               >
-                {results.exercises[currentExerciseIndex].correct ? 'Correct!' : 'Not quite right'}
+                {results.exercises[currentExerciseIndex].isCorrect ? 'Correct!' : 'Not quite right'}
               </Text>
             </View>
             
@@ -712,7 +693,7 @@ export default function ExerciseScreen() {
             {currentExercise.type === 'fill-in-blank' && (
               <View>
                 <Text style={styles.explanationText}>
-                  {results.exercises[currentExerciseIndex].correct
+                  {results.exercises[currentExerciseIndex].isCorrect
                     ? 'Good job! Your answer matches the expected response.'
                     : `The correct answer is: ${currentExercise.correctAnswer}`}
                 </Text>
@@ -725,11 +706,11 @@ export default function ExerciseScreen() {
             {currentExercise.type === 'matching' && (
               <View>
                 <Text style={styles.explanationText}>
-                  {results.exercises[currentExerciseIndex].correct
+                  {results.exercises[currentExerciseIndex].isCorrect
                     ? 'You matched all items correctly!'
                     : 'Here are the correct matches:'}
                 </Text>
-                {!results.exercises[currentExerciseIndex].correct && currentExercise.matchingPairs?.map((pair, index) => (
+                {!results.exercises[currentExerciseIndex].isCorrect && currentExercise.matchingPairs?.map((pair, index) => (
                   <Text key={index} style={styles.explanationMatchingPair}>
                     • {pair.left} → {pair.right}
                   </Text>
@@ -743,11 +724,11 @@ export default function ExerciseScreen() {
             {currentExercise.type === 'reorder' && (
               <View>
                 <Text style={styles.explanationText}>
-                  {results.exercises[currentExerciseIndex].correct
+                  {results.exercises[currentExerciseIndex].isCorrect
                     ? 'Perfect ordering!'
                     : 'The correct order is:'}
                 </Text>
-                {!results.exercises[currentExerciseIndex].correct && currentExercise.correctOrder?.map((itemId, index) => {
+                {!results.exercises[currentExerciseIndex].isCorrect && currentExercise.correctOrder?.map((itemId, index) => {
                   const item = currentExercise.reorderItems?.find(i => i.id === itemId);
                   return item ? (
                     <Text key={index} style={styles.explanationOrderItem}>

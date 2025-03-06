@@ -325,11 +325,15 @@ export const useProgressStore = create<ProgressState>()(
             return null;
           }
           
-          // Update state with completion
+          // Update state with completion AND set progress to 100%
           return {
             progress: {
               ...state.progress,
               completedLevels: [...state.progress.completedLevels, levelId],
+              levelProgress: {
+                ...state.progress.levelProgress,
+                [levelId]: 100 // Always set completed levels to 100% progress
+              },
               lastUpdated: Date.now()
             }
           };

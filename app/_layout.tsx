@@ -86,9 +86,9 @@ function RootLayoutNav() {
         // Resume any pending lesson generations after a short delay
         console.log('App returned to foreground, will resume exercise preloading');
         setTimeout(() => {
-          console.log('Initiating background preloading after app resume');
-          useLessonStore.getState().preloadAllLessons().catch(err => {
-            console.error('Background lesson preloading failed on app resume:', err);
+          console.log('Initiating prioritized preloading after app resume');
+          useLessonStore.getState().preloadPrioritizedLessons().catch(err => {
+            console.error('Prioritized lesson preloading failed on app resume:', err);
           });
         }, 2000);
       }
