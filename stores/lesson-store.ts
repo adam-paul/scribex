@@ -6,6 +6,7 @@ import { ExerciseSet, Exercise } from '@/types/exercises';
 import { useProgressStore } from './progress-store';
 import { UserProgress } from '@/types/learning';
 import { LEVELS } from '@/constants/levels';
+import { MAX_EXERCISES_PER_LEVEL } from '@/constants/exercises';
 
 // Storage adapter for lesson data
 const createLessonStorage = () => {
@@ -21,9 +22,6 @@ const createLessonStorage = () => {
     },
   };
 };
-
-// Maximum number of exercises per level
-const MAX_EXERCISES_PER_LEVEL = 5;
 
 // Type definitions
 interface LessonStoreState {

@@ -5,6 +5,7 @@
 
 import { Exercise, ExerciseSet } from '@/types/exercises';
 import { LEVELS } from '@/constants/levels';
+import { MAX_EXERCISES_PER_LEVEL } from '@/constants/exercises';
 import OpenAI from 'openai';
 
 // Import Constants from Expo
@@ -149,11 +150,9 @@ export async function generateExercise(levelId: string, topic: string): Promise<
   }
 }
 
-// Fallback functions have been completely removed
-
 // Function to generate a complete exercise set with more structured options
 export async function generateExerciseSet(options: AIRequestOptions): Promise<ExerciseSet> {
-  const { levelId, count = 5 } = options; // Default to 5 exercises per set (same as MAX_EXERCISES_PER_LEVEL)
+  const { levelId, count = MAX_EXERCISES_PER_LEVEL } = options; // Default to MAX_EXERCISES_PER_LEVEL
   
   try {
     // Ensure AI is properly configured
@@ -420,8 +419,6 @@ export async function generateAIExerciseWithType(
     throw new Error(`Failed to generate ${exerciseType} exercise: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }
-
-
 
 // Interface for structured writing feedback
 export interface WritingFeedback {
@@ -694,4 +691,3 @@ export async function scoreWriting(
     throw new Error(`Failed to score writing: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }
-

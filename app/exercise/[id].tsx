@@ -6,11 +6,11 @@ import { AlertCircle, Move } from 'lucide-react-native';
 import { colors } from '@/constants/colors';
 import { Button } from '@/components/Button';
 import { Card } from '@/components/Card';
-import { Choice, ExerciseSet, Exercise } from '@/types/exercises';
+import { ExerciseSet, Exercise } from '@/types';
 import { useProgressStore } from '@/stores/progress-store';
 import { useLessonStore } from '@/stores/lesson-store';
-import { generateExerciseSet, generateAIExerciseWithType } from '@/services/ai-service';
 import { LEVELS } from '@/constants/levels';
+import { MAX_EXERCISES_PER_LEVEL } from '@/constants/exercises';
 
 // Define the interface locally since it doesn't match the one in types
 interface ExerciseSetResults {
@@ -27,9 +27,6 @@ interface ExerciseSetResults {
     attempts: number;
   }>;
 }
-
-// Maximum number of exercises per level (must match value in lesson-store)
-const MAX_EXERCISES_PER_LEVEL = 5;
 
 export default function ExerciseScreen() {
   const { id } = useLocalSearchParams();
