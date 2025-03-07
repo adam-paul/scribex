@@ -44,8 +44,25 @@ export default function WriteScreen() {
   const [loading, setLoading] = useState(false);
   const [tempContent, setTempContent] = useState(''); // Store unsaved content
   
-  // Data is now loaded at app root level
-  // No need to load again here
+  // Ensure we have the latest projects from the backend
+  useEffect(() => {
+    const loadProjects = async () => {
+      try {
+        if (isAuthenticated) {
+          console.log('Write tab: Loading writing projects from backend');
+          const writingData = await supabaseService.getWritingProjects('write.onMount');
+          if (writingData && writingData.length > 0) {
+            console.log(`Loaded ${writingData.length} writing projects from backend`);
+            useWritingStore.setState({ projects: writingData });
+          }
+        }
+      } catch (error) {
+        console.error('Error loading writing projects:', error);
+      }
+    };
+    
+    loadProjects();
+  }, [isAuthenticated]);
   
   // Handle initial state based on the three scenarios
   useEffect(() => {

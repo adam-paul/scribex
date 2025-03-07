@@ -15,6 +15,9 @@ export default function Index() {
   const loadServerData = useProgressStore(state => state.loadServerData);
   
   // Add logging to help debug navigation issues
+  // Access the loadUserData function from auth context
+  const { loadUserData } = useAuth();
+
   useEffect(() => {
     if (!isLoading) {
       console.log('Root index rendering with auth state:', { isAuthenticated, isLoading });
@@ -22,9 +25,12 @@ export default function Index() {
     
     // Preload user data when authenticated
     if (isAuthenticated && !isLoading) {
+      // Load both progress data and writing projects
+      console.log('Loading user data and server data');
       loadServerData();
+      loadUserData();
     }
-  }, [isAuthenticated, isLoading, loadServerData]);
+  }, [isAuthenticated, isLoading, loadServerData, loadUserData]);
   
   // While checking auth, show a clean loading screen
   // This prevents any flashing of content

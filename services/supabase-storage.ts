@@ -94,8 +94,9 @@ export const createSupabaseStorage = <T>(storeName: string): PersistStorage<T> =
         // First try to get from local storage regardless of login state
         const localData = await localStorageMechanism.getItem(name);
         
-        // During login/logout transitions, avoid Supabase calls by always using local data
-        // This prevents unnecessary API calls during auth state changes
+        // Return local data - we'll handle cloud synchronization 
+        // through explicit calls in the app, not through the storage mechanism
+        console.log(`Rehydrating ${storeName} store from local storage`);
         return localData as StorageValue<T> | null;
       } catch (error) {
         console.error(`Error getting ${storeName}:`, error);

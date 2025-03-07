@@ -135,8 +135,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             try {
               const refreshedUser = await supabaseService.refreshUser();
               setUser(refreshedUser);
-              // User data will be loaded by the consumer after user is set
-              // We don't immediately load data here to prevent duplicate loading
+              
+              // Load essential data directly when signed in
+              console.log('User signed in, loading writing projects');
+              const writingData = await supabaseService.getWritingProjects('AuthContext.onSignIn');
+              if (writingData) {
+                console.log(`Loaded ${writingData.length} writing projects on sign in`);
+                setProjects(writingData || []);
+              }
             } catch (error) {
               console.error('Error handling sign in:', error);
             }
