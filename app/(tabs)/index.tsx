@@ -26,12 +26,8 @@ export default function MapScreen() {
   const [animationLevel, setAnimationLevel] = useState<LearningLevel | undefined>(undefined);
   const [isOffline, setIsOffline] = useState(false);
   
-  // Load data on mount if authenticated
-  useEffect(() => {
-    if (isAuthenticated) {
-      loadServerData();
-    }
-  }, [isAuthenticated, loadServerData]);
+  // Data is now loaded at app root level
+  // No need to load again here
   
   // Handle level selection
   const handleLevelPress = (levelId: string) => {

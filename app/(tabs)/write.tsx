@@ -41,18 +41,8 @@ export default function WriteScreen() {
   const [loading, setLoading] = useState(false);
   const [tempContent, setTempContent] = useState(''); // Store unsaved content
   
-  // Load user data when the component mounts
-  useEffect(() => {
-    const loadData = async () => {
-      if (isAuthenticated) {
-        setLoading(true);
-        await loadUserData();
-        setLoading(false);
-      }
-    };
-    
-    loadData();
-  }, [isAuthenticated]);
+  // Data is now loaded at app root level
+  // No need to load again here
   
   // Handle initial state based on the three scenarios
   useEffect(() => {

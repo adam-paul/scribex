@@ -3,6 +3,7 @@ import { Redirect } from 'expo-router';
 import { View, ActivityIndicator, Text, StyleSheet } from 'react-native';
 import { useAuth } from '@/contexts/AuthContext';
 import { colors } from '@/constants/colors';
+import { useProgressStore } from '@/stores/progress-store';
 
 /**
  * This is the entry point of the app.
@@ -11,13 +12,19 @@ import { colors } from '@/constants/colors';
  */
 export default function Index() {
   const { isAuthenticated, isLoading } = useAuth();
+  const loadServerData = useProgressStore(state => state.loadServerData);
   
   // Add logging to help debug navigation issues
   useEffect(() => {
     if (!isLoading) {
       console.log('Root index rendering with auth state:', { isAuthenticated, isLoading });
     }
-  }, [isAuthenticated, isLoading]);
+    
+    // Preload user data when authenticated
+    if (isAuthenticated && !isLoading) {
+      loadServerData();
+    }
+  }, [isAuthenticated, isLoading, loadServerData]);
   
   // While checking auth, show a clean loading screen
   // This prevents any flashing of content
