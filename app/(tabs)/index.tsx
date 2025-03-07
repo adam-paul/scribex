@@ -12,6 +12,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { LearningLevel } from '@/types';
 import NetInfo from '@react-native-community/netinfo';
 import { useAuth } from '@/contexts/AuthContext';
+import { useLessonStore } from '@/stores/lesson-store';
 
 export default function MapScreen() {
   const progress = useProgressStore((state) => state.progress);
@@ -55,6 +56,11 @@ export default function MapScreen() {
       console.log('Journey screen loaded, checking for any pending level unlocks...');
       const checkAndUnlockNextContent = useProgressStore.getState().checkAndUnlockNextContent;
       await checkAndUnlockNextContent();
+      
+      // Trigger prioritized lesson preloading after content unlocks are checked
+      console.log('Starting exercise preloading for highest unlocked level');
+      const useLessonStoreState = useLessonStore.getState();
+      useLessonStoreState.preloadPrioritizedLessons();
     };
     
     checkForUnlocks();
