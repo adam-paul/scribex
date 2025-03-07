@@ -273,15 +273,6 @@ export default function WebWriterPage() {
       ) : (
         // Editor Screen
         <>
-          {/* Subtle connected indicator */}
-          {isConnected && (
-            <View style={styles.connectedIndicator}>
-              <Text style={styles.connectedText}>
-                {project?.title || 'Connected'}
-              </Text>
-            </View>
-          )}
-
           {/* Editor toolbar */}
           <View style={styles.toolbar}>
             <View style={styles.toolbarLeft}>
@@ -311,6 +302,16 @@ export default function WebWriterPage() {
               </Text>
             </View>
 
+            {/* Project title in the center */}
+            {isConnected && project && (
+              <View style={styles.projectTitleContainer}>
+                <Text style={styles.projectTitle} numberOfLines={1} ellipsizeMode="tail">
+                  {project?.title || 'Untitled Project'}
+                </Text>
+              </View>
+            )}
+
+            {/* Save button on the right */}
             {token && (
               <TouchableOpacity 
                 style={styles.saveButton}
@@ -446,6 +447,19 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 16,
+    flex: 1,
+  },
+  projectTitleContainer: {
+    flex: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 10,
+  },
+  projectTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.text,
+    textAlign: 'center',
   },
   toolbarButton: {
     padding: 8,
@@ -492,6 +506,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     backgroundColor: 'rgba(0, 0, 0, 0.05)',
     borderRadius: 6,
+    flex: 1,
+    justifyContent: 'flex-end',
   },
   saveButtonText: {
     fontSize: 14,
