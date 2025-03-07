@@ -27,26 +27,37 @@ class WebWriterService {
    */
   public async generateSessionToken(projectId: string): Promise<string | null> {
     try {
+      console.log("[TOKEN] Generating session token for project:", projectId);
+      
       const user = supabaseService.getCurrentUser();
       if (!user) {
-        console.error('Cannot generate session token: No user is logged in');
+        console.error('[TOKEN] Cannot generate session token: No user is logged in');
         return null;
       }
+      
+      console.log("[TOKEN] User authenticated:", user.id);
 
       // Get the project
+      console.log("[TOKEN] Fetching writing projects");
       const projects = await supabaseService.getWritingProjects('generateSessionToken');
+      console.log("[TOKEN] Writing projects fetched:", projects?.length || 0);
+      
       const project = projects?.find(p => p.id === projectId);
 
       if (!project) {
-        console.error('Cannot generate session token: Project not found');
+        console.error('[TOKEN] Cannot generate session token: Project not found');
         return null;
       }
+      
+      console.log("[TOKEN] Project found:", project.id, project.title);
 
       // Generate a random token
       const token = nanoid(12);
+      console.log("[TOKEN] Generated random token:", token);
       
       // Store the token in Supabase
-      const { error } = await supabaseService.getClient()
+      console.log("[TOKEN] Storing token in web_session_tokens table");
+      const { data, error } = await supabaseService.getClient()
         .from('web_session_tokens')
         .insert({
           token,
@@ -55,12 +66,24 @@ class WebWriterService {
           project_data: project,
           created_at: new Date().toISOString(),
           expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // 24 hours from now
-        });
+        })
+        .select();
 
       if (error) {
-        console.error('Error storing session token:', error);
+        console.error('[TOKEN] Error storing session token:', error);
         return null;
       }
+      
+      console.log('[TOKEN] Token stored successfully:', data);
+      
+      // Verify token was properly stored
+      const { data: verifyData, error: verifyError } = await supabaseService.getClient()
+        .from('web_session_tokens')
+        .select()
+        .eq('token', token)
+        .single();
+        
+      console.log('[TOKEN] Verification check:', verifyData ? 'Found' : 'Not found', verifyError || 'No error');
 
       return token;
     } catch (error) {
@@ -76,15 +99,17 @@ class WebWriterService {
    */
   public async validateSessionToken(token: string): Promise<WritingProject | null> {
     try {
+      console.log('[TOKEN] Validating session token:', token);
       // Call the RPC function to validate the token
       const { data, error } = await supabaseService.getClient()
-        .rpc('validate_session_token', { token });
+        .rpc('validate_session_token', { p_token: token });
 
       if (error) {
-        console.error('Error validating session token:', error);
+        console.error('[TOKEN] Error validating session token:', error);
         return null;
       }
 
+      console.log('[TOKEN] Validation response:', data);
       if (data && data.valid && data.project) {
         return data.project as WritingProject;
       }
@@ -104,14 +129,16 @@ class WebWriterService {
    */
   public async updateProjectWithToken(token: string, projectUpdate: Partial<WritingProject>): Promise<boolean> {
     try {
+      console.log('[TOKEN] Updating project with token:', token);
       // First validate the token and get the current project
       const project = await this.validateSessionToken(token);
       
       if (!project) {
-        console.error('Cannot update project: Invalid token');
+        console.error('[TOKEN] Cannot update project: Invalid token');
         return false;
       }
 
+      console.log('[TOKEN] Project found, updating...');
       // Update the project in Supabase
       const { error } = await supabaseService.getClient()
         .from('web_session_tokens')

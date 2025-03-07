@@ -329,13 +329,17 @@ export default function WriteScreen() {
       }
       
       // Generate the session token
+      console.log("[PAIRING] Generating session token for project ID:", projectId);
       const token = await webWriterService.generateSessionToken(projectId);
       
       if (!token) {
+        console.error("[PAIRING] Failed to generate session token");
         Alert.alert('Error', 'Failed to generate session token. Please try again.');
         setLoading(false);
         return;
       }
+      
+      console.log("[PAIRING] Generated session token:", token);
 
       // Generate a simple 6-character code for pairing
       const code = Array(6).fill(0).map(() => 
@@ -343,15 +347,21 @@ export default function WriteScreen() {
       ).join('');
       
       // Store the code-to-token mapping in Supabase
-      const { error } = await supabaseService.getClient()
+      const userId = supabaseService.getCurrentUser()?.id;
+      console.log("[PAIRING] Creating pairing code:", code, "for user:", userId);
+      
+      const { data: pairingData, error } = await supabaseService.getClient()
         .from('pairing_codes')
         .insert({
           code,
           token,
-          user_id: supabaseService.getCurrentUser()?.id,
+          user_id: userId,
           expires_at: new Date(Date.now() + 15 * 60 * 1000).toISOString(), // 15 min expiry
           paired: false
-        });
+        })
+        .select();
+        
+      console.log("[PAIRING] Pairing data created:", pairingData);
       
       if (error) {
         console.error('Error storing pairing code:', error);
@@ -382,22 +392,34 @@ export default function WriteScreen() {
   const startPairingStatusCheck = (code: string) => {
     const checkInterval = setInterval(async () => {
       try {
+        console.log("[PAIRING] Checking pairing status for code:", code);
         const { data, error } = await supabaseService.getClient()
           .from('pairing_codes')
-          .select('paired')
+          .select('paired, token')
           .eq('code', code)
           .single();
           
         if (error) {
-          console.error('Error checking pairing status:', error);
+          console.error('[PAIRING] Error checking pairing status:', error);
           clearInterval(checkInterval);
           return;
         }
         
+        console.log("[PAIRING] Pairing status check result:", data);
+        
         if (data && data.paired) {
-          console.log('Device paired successfully!');
+          console.log('[PAIRING] Device paired successfully! Token:', data.token);
           clearInterval(checkInterval);
           setIsPaired(true);
+          
+          // Verify the token still exists in web_session_tokens
+          const { data: tokenData, error: tokenError } = await supabaseService.getClient()
+            .from('web_session_tokens')
+            .select('id, project_id')
+            .eq('token', data.token)
+            .single();
+            
+          console.log("[PAIRING] Token verification in database:", tokenData || "Not found", tokenError || "No error");
         }
       } catch (e) {
         console.error('Exception checking pairing status:', e);

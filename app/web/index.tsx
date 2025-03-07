@@ -25,6 +25,7 @@ export default function WebWriterPage() {
       const urlToken = params.get('token');
       if (urlToken) {
         setToken(urlToken);
+        console.log('[WEB] Token from URL:', urlToken);
         validateToken(urlToken);
         setShowPairingInput(false);
         
@@ -47,20 +48,42 @@ export default function WebWriterPage() {
     
     try {
       setPairingError(null);
+      console.log('[WEB] Validating pairing code:', pairingCode);
+      
+      // Add logging for API key
+      console.log('[WEB] Supabase URL:', supabaseService.getClient().supabaseUrl ? 'Defined' : 'Undefined');
+      console.log('[WEB] API Key first 5 chars:', 
+        supabaseService.getClient().supabaseKey ? 
+        supabaseService.getClient().supabaseKey.substring(0, 5) + '...' : 
+        'Undefined');
       
       // Call the RPC function to validate the pairing code
+      console.log('[WEB] Calling validate_pairing_code RPC function');
       const { data, error } = await supabaseService.getClient()
         .rpc('validate_pairing_code', { code_to_validate: pairingCode });
+      
+      console.log('[WEB] RPC response:', data || 'No data', error || 'No error');
         
       if (error) {
-        console.error('Error validating pairing code:', error);
+        console.error('[WEB] Error validating pairing code:', error);
         setPairingError('Failed to validate code. Please try again.');
         return;
       }
       
       if (data && data.valid && data.token) {
-        console.log('Pairing successful, token:', data.token);
+        console.log('[WEB] Pairing successful, token:', data.token);
         setToken(data.token);
+        
+        // Check if token exists directly in the database
+        console.log('[WEB] Verifying token directly in database');
+        const { data: tokenData, error: tokenError } = await supabaseService.getClient()
+          .from('web_session_tokens')
+          .select('id, project_id, created_at')
+          .eq('token', data.token)
+          .single();
+        
+        console.log('[WEB] Direct token verification:', tokenData || 'Not found', tokenError || 'No error');
+        
         validateToken(data.token);
         setShowPairingInput(false);
         
@@ -90,20 +113,51 @@ export default function WebWriterPage() {
     if (!content || !tokenValue) return;
     
     try {
+      console.log('[WEB] Saving content for token:', tokenValue);
+      
+      const updateData = { 
+        content, 
+        wordCount: content.trim().split(/\s+/).filter(Boolean).length || 0,
+        dateModified: new Date().toISOString() 
+      };
+      
+      console.log('[WEB] Update data:', updateData);
+      
+      // Try direct update first
+      console.log('[WEB] Querying web_session_tokens table directly');
+      const { data: directData, error: directError } = await supabaseService.getClient()
+        .from('web_session_tokens')
+        .select('id, project_id')
+        .eq('token', tokenValue)
+        .single();
+        
+      console.log('[WEB] Direct query result:', directData || 'Not found', directError || 'No error');
+      
+      // Now call the RPC function
+      console.log('[WEB] Calling update_session_project RPC function');
       const { data, error } = await supabaseService.getClient().rpc('update_session_project', { 
-        token: tokenValue, 
-        project_update: { 
-          content, 
-          wordCount: content.trim().split(/\s+/).filter(Boolean).length || 0,
-          dateModified: new Date().toISOString() 
-        } 
+        p_token: tokenValue, 
+        project_update: updateData
       });
       
+      console.log('[WEB] RPC result:', data || 'No data', error || 'No error');
+      
       if (error) {
-        console.error('Error saving content:', error);
+        console.error('[WEB] Error saving content:', error);
+        
+        // Try debugging by checking if the token still exists
+        const { data: verifyData, error: verifyError } = await supabaseService.getClient()
+          .from('web_session_tokens')
+          .select('id')
+          .eq('token', tokenValue)
+          .single();
+          
+        console.log('[WEB] Token verification after save error:', 
+          verifyData ? 'Token still exists' : 'Token not found', 
+          verifyError || 'No query error');
       }
     } catch (error) {
-      console.error('Exception saving content:', error);
+      console.error('[WEB] Exception saving content:', error);
     }
   };
 
@@ -117,23 +171,51 @@ export default function WebWriterPage() {
   // Validate the token and load project if valid
   const validateToken = async (tokenValue: string) => {
     try {
-      const { data, error } = await supabaseService.getClient().rpc('validate_session_token', { token: tokenValue });
+      console.log('[WEB] Validating session token:', tokenValue);
+      
+      // Try a direct query to check if token exists
+      console.log('[WEB] Directly querying web_session_tokens table');
+      const { data: directData, error: directError } = await supabaseService.getClient()
+        .from('web_session_tokens')
+        .select('id, project_id, created_at')
+        .eq('token', tokenValue)
+        .single();
+        
+      console.log('[WEB] Direct token query result:', directData || 'Not found', directError || 'No error');
+      
+      // Now call the RPC function
+      console.log('[WEB] Calling validate_session_token RPC function');
+      const { data, error } = await supabaseService.getClient().rpc('validate_session_token', { p_token: tokenValue });
+      
+      console.log('[WEB] RPC result:', data || 'No data', error || 'No error');
       
       if (error) {
-        console.error('Token validation error:', error);
+        console.error('[WEB] Token validation error:', error);
+        
+        // Try debugging the function by getting role info
+        const { data: roleData } = await supabaseService.getClient().auth.getUser();
+        console.log('[WEB] Current auth state:', roleData ? 'Authenticated' : 'Not authenticated', 
+          roleData?.user ? `User: ${roleData.user.id}` : '');
+        
         return;
       }
       
       if (data && data.valid) {
+        console.log('[WEB] Token is valid, loading project data');
         // Set the project from the token data
         if (data.project) {
           setProject(data.project);
           setContent(data.project.content || '');
           setIsConnected(true);
+          console.log('[WEB] Project loaded successfully:', data.project.id, data.project.title);
+        } else {
+          console.error('[WEB] No project data in valid token response');
         }
+      } else {
+        console.error('[WEB] Token is invalid');
       }
     } catch (error) {
-      console.error('Error validating token:', error);
+      console.error('[WEB] Error validating token:', error);
     }
   };
 
