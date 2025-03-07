@@ -15,7 +15,7 @@ interface UserProgress {
   levelProgress: { [key: string]: number }; // Progress percentage per level
   completedLevels: string[];         // IDs of all completed levels
   unlockedLevels: string[];          // IDs of all accessible levels
-  totalXp: number;                   // Accumulated XP from exercises
+  totalXp: number;                   // Unified XP system for all rewards
   dailyStreak: number;               // Consecutive days of app usage
   lastUpdated: number;               // Timestamp of last update
 }
@@ -52,7 +52,7 @@ interface Achievement {
 2. **Level Progression**: Levels follow a prerequisite chain:
    - `mechanics-1` → `mechanics-2` → `sequencing-1` → `voice-1` → etc.
 
-3. **XP System**: Experience points are earned from exercise completion:
+3. **Unified XP System**: Experience points are earned directly from exercise completion:
    - Base XP: 20 XP per correct answer
    - Difficulty bonus: Level difficulty * 10
    - Streak bonus: Up to 50 XP for consecutive correct answers

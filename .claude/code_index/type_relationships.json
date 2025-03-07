@@ -328,9 +328,8 @@
         "levelProgress": "{ [key: string]: number }",
         "completedLevels": "string[]",
         "unlockedLevels": "string[]",
-        "totalScore": "number",
+        "totalXp": "number",
         "dailyStreak": "number",
-        "achievements": "Achievement[]",
         "lastUpdated": "number"
       },
       "extends": [],
