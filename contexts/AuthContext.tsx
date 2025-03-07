@@ -133,8 +133,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             try {
               const refreshedUser = await supabaseService.refreshUser();
               setUser(refreshedUser);
-              // Load user data after user is set
-              await loadUserData();
+              // User data will be loaded by the consumer after user is set
+              // We don't immediately load data here to prevent duplicate loading
             } catch (error) {
               console.error('Error handling sign in:', error);
             }

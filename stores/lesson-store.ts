@@ -268,18 +268,30 @@ export const useLessonStore = create<LessonStoreState>()(
       preloadPrioritizedLessons: () => {
         // Get progress information
         const progressStore = useProgressStore.getState();
-        const progress = progressStore.progress;
+        const { progress } = progressStore;
         const currentLevelId = progress.currentLevel;
-        
-        if (!currentLevelId) {
-          console.log('No current level to preload');
-          return Promise.resolve();
-        }
+
+        // Find the highest unlocked level
+        const highestUnlockedLevel = LEVELS
+          .filter(level => progress.unlockedLevels.includes(level.id))
+          .sort((a, b) => b.difficulty - a.difficulty || (b.order || 0) - (a.order || 0))[0];
+
+        const highestLevelId = highestUnlockedLevel?.id || currentLevelId;
         
         return (async () => {
-          // Step 1: First ensure current level has at least one exercise
-          console.log(`Ensuring current level ${currentLevelId} has at least one exercise`);
-          if (!get().hasExercisesForLevel(currentLevelId)) {
+          // Step 1: First ensure highest unlocked level has at least one exercise
+          console.log(`Ensuring highest unlocked level ${highestLevelId} has at least one exercise`);
+          if (!get().hasExercisesForLevel(highestLevelId)) {
+            try {
+              await get().preloadFirstExerciseIfNeeded(highestLevelId);
+            } catch (error) {
+              console.error(`Failed to preload first exercise for highest level ${highestLevelId}:`, error);
+            }
+          }
+          
+          // Step 2: If current level is different from highest level, ensure it has exercises too
+          if (currentLevelId !== highestLevelId) {
+            console.log(`Ensuring current level ${currentLevelId} has at least one exercise`);
             try {
               await get().preloadFirstExerciseIfNeeded(currentLevelId);
             } catch (error) {
@@ -287,24 +299,13 @@ export const useLessonStore = create<LessonStoreState>()(
             }
           }
           
-          // Step 2: Find next level (highest priority after current)
-          const nextLevelId = progressStore.getNextLevel(currentLevelId);
-          if (nextLevelId && progress.unlockedLevels.includes(nextLevelId)) {
-            console.log(`Ensuring next level ${nextLevelId} has at least one exercise`);
-            try {
-              await get().preloadFirstExerciseIfNeeded(nextLevelId);
-            } catch (error) {
-              console.error(`Failed to preload first exercise for next level ${nextLevelId}:`, error);
-            }
-          }
-          
-          // Step 3: If we have time and resources, continue loading more for current level
-          const existingCount = get().getExerciseCount(currentLevelId);
+          // Step 3: Continue loading more exercises for highest level in background
+          const existingCount = get().getExerciseCount(highestLevelId);
           const exercisesNeeded = MAX_EXERCISES_PER_LEVEL - existingCount;
           
           if (exercisesNeeded > 0) {
-            console.log(`Continuing to load remaining ${exercisesNeeded} exercises for current level in background`);
-            get().preloadRemainingExercises(currentLevelId, exercisesNeeded);
+            console.log(`Continuing to load remaining ${exercisesNeeded} exercises for highest level in background`);
+            get().preloadRemainingExercises(highestLevelId, exercisesNeeded);
           }
         })();
       },

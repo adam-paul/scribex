@@ -97,6 +97,16 @@ export default function ExerciseScreen() {
           const exercisesNeeded = !exerciseData ? MAX_EXERCISES_PER_LEVEL : MAX_EXERCISES_PER_LEVEL - exerciseData.exercises.length;
           console.log(`Need to generate ${exercisesNeeded} exercises for level ${id}`);
           
+          // Clear any existing background generation tasks for other levels and start new one
+          const currentTasks = Object.keys(lessonStore.activeGenerationTasks);
+          
+          // Cancel other tasks by starting a new one for this level
+          if (currentTasks.length > 0) {
+            console.log(`Cancelling background generation for other levels to focus on ${id}`);
+            // The preloadRemainingExercises function will automatically clear other tasks
+            // when starting a new one for this level
+          }
+          
           // Start background generation for remaining exercises
           lessonStore.preloadRemainingExercises(id, exercisesNeeded);
           
