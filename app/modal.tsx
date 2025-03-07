@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, View, Text, TouchableOpacity } from 'react-native';
+import { StyleSheet, View, Text, TouchableOpacity, BackHandler } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, useRouter } from 'expo-router';
 import { X, ArrowRight, SendHorizonal } from 'lucide-react-native';
@@ -57,6 +57,20 @@ export default function ModalScreen() {
       setSelectedTopic(null);
     }
   }, [selectedInterest]);
+  
+  // Handle back button press (both system back and header back)
+  const handleBackPress = () => {
+    router.replace('/(tabs)/write');
+    return true; // Prevents default back behavior
+  };
+
+  // Add system back button handler
+  useEffect(() => {
+    BackHandler.addEventListener('hardwareBackPress', handleBackPress);
+    return () => {
+      BackHandler.removeEventListener('hardwareBackPress', handleBackPress);
+    };
+  }, []);
   
   // Handle template selection
   const handleSelectTemplate = (template: WritingTemplate) => {
@@ -203,19 +217,21 @@ export default function ModalScreen() {
       <Stack.Screen 
         options={{
           title: '',
-          headerLeft: () => (
-            <TouchableOpacity 
-              onPress={() => router.back()}
-              style={styles.closeButton}
-            >
-              <X size={24} color={colors.text} />
-            </TouchableOpacity>
-          ),
+          headerShown: false,
         }}
       />
       
-      {renderStepIndicators()}
-      {renderStepContent()}
+      <View style={styles.modalContent}>
+        <TouchableOpacity 
+          onPress={handleBackPress}
+          style={styles.modalCloseButton}
+        >
+          <X size={24} color={colors.text} />
+        </TouchableOpacity>
+        
+        {renderStepIndicators()}
+        {renderStepContent()}
+      </View>
     </SafeAreaView>
   );
 }
@@ -224,6 +240,19 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
+  },
+  modalContent: {
+    flex: 1,
+    position: 'relative',
+  },
+  modalCloseButton: {
+    position: 'absolute',
+    top: 16,
+    right: 16,
+    zIndex: 1,
+    padding: 8,
+    borderRadius: 20,
+    backgroundColor: colors.surfaceHighlight,
   },
   closeButton: {
     padding: 8,
