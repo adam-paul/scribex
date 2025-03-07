@@ -14,8 +14,8 @@ import { WritingGenre, WritingProject } from '@/types';
 import { useAuth } from '@/contexts/AuthContext';
 import supabaseService from '@/services/supabase-service';
 
-// Web app URL - replace with your actual Vercel deployment URL
-const WEB_APP_URL = 'https://scribex.vercel.app/web';
+// Web app URL - root URL of your Vercel deployment
+const WEB_APP_URL = 'https://scribex.vercel.app';
 
 // Import the web writer service
 import webWriterService from '@/services/web-writer-service';
@@ -518,11 +518,11 @@ export default function WriteScreen() {
                   </Text>
                   
                   <View style={styles.urlContainer}>
-                    <Text style={styles.urlText}>{WEB_APP_URL.replace('?token=', '')}</Text>
+                    <Text style={styles.urlText}>{WEB_APP_URL}</Text>
                     <TouchableOpacity 
                       style={styles.copyButton}
                       onPress={() => {
-                        Linking.openURL(WEB_APP_URL.replace('?token=', ''));
+                        Linking.openURL(WEB_APP_URL);
                         Alert.alert('URL opened in browser', 'You can copy it from there.');
                       }}
                     >
