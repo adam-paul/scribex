@@ -190,9 +190,9 @@ export function WritingEditor({
             onPress={onToggleFocusMode}
           >
             {focusMode ? (
-              <Eye size={20} color={colors.primary} />
+              <EyeOff size={20} color={colors.primary} />
             ) : (
-              <EyeOff size={20} color={colors.textSecondary} />
+              <Eye size={20} color={colors.textSecondary} />
             )}
           </TouchableOpacity>
           
