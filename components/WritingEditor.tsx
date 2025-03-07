@@ -9,8 +9,10 @@ import {
   KeyboardAvoidingView,
   Platform,
   Animated,
+  Alert,
 } from 'react-native';
-import { Save, EyeOff, Eye, Type, Plus, Minus } from 'lucide-react-native';
+import { GestureDetector, Gesture } from 'react-native-gesture-handler';
+import { Save, EyeOff, Eye, Type, Plus, Minus, ExternalLink } from 'lucide-react-native';
 import { colors } from '@/constants/colors';
 import { WritingProject } from '@/types';
 
@@ -21,6 +23,7 @@ interface WritingEditorProps {
   onSave: () => void;
   focusMode?: boolean;
   onToggleFocusMode?: () => void;
+  onOpenInWeb?: () => void; // Optional callback to open in web
 }
 
 /**
@@ -33,14 +36,47 @@ export function WritingEditor({
   onSave,
   focusMode = false,
   onToggleFocusMode = () => {},
+  onOpenInWeb = () => {},
 }: WritingEditorProps) {
   const [fontSize, setFontSize] = useState(16);
   const [keyboardVisible, setKeyboardVisible] = useState(false);
   const [showToolbar, setShowToolbar] = useState(true);
   const isWeb = Platform.OS === 'web';
+  const [showWebIndicator, setShowWebIndicator] = useState(false);
   
   // Mobile-only animation
   const toolbarOpacity = !isWeb ? new Animated.Value(1) : null;
+  const webIndicatorOpacity = !isWeb ? new Animated.Value(0) : null;
+  
+  // Set up swipe gesture for mobile
+  const swipeGesture = Gesture.Pan()
+    .onStart(() => {
+      if (isWeb) return;
+      setShowWebIndicator(true);
+      animateWebIndicator(true);
+    })
+    .onUpdate((event) => {
+      if (isWeb) return;
+      // If swipe is upward and strong enough
+      if (event.translationY < -120) {
+        setShowWebIndicator(true);
+        animateWebIndicator(true);
+      } else {
+        animateWebIndicator(false);
+      }
+    })
+    .onEnd((event) => {
+      if (isWeb) return;
+      // If gesture was a strong upward swipe
+      if (event.translationY < -150 && event.velocityY < -200) {
+        // Trigger open in web
+        onOpenInWeb();
+      }
+      
+      // Hide the indicator
+      animateWebIndicator(false);
+      setTimeout(() => setShowWebIndicator(false), 300);
+    });
   
   // Mobile-only keyboard handling
   useEffect(() => {
@@ -88,6 +124,17 @@ export function WritingEditor({
     Animated.timing(toolbarOpacity, {
       toValue: 1,
       duration: 300,
+      useNativeDriver: true,
+    }).start();
+  };
+  
+  // Web indicator animations
+  const animateWebIndicator = (show: boolean) => {
+    if (!webIndicatorOpacity) return;
+    
+    Animated.timing(webIndicatorOpacity, {
+      toValue: show ? 1 : 0,
+      duration: 200,
       useNativeDriver: true,
     }).start();
   };
@@ -177,6 +224,21 @@ export function WritingEditor({
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
+      {/* Web indicator that appears when swiping up */}
+      {showWebIndicator && (
+        <Animated.View 
+          style={[
+            styles.webIndicator,
+            { opacity: webIndicatorOpacity ?? 0 }
+          ]}
+        >
+          <ExternalLink size={24} color={colors.primary} />
+          <Text style={styles.webIndicatorText}>
+            Swipe up to open in web browser
+          </Text>
+        </Animated.View>
+      )}
+      
       <Animated.View 
         style={[
           styles.toolbar, 
@@ -227,26 +289,28 @@ export function WritingEditor({
         </TouchableOpacity>
       </Animated.View>
       
-      <View style={styles.editorContainer}>
-        <TextInput
-          style={[
-            styles.editor, 
-            { fontSize },
-            focusMode && styles.focusModeEditor
-          ]}
-          multiline
-          value={content}
-          onChangeText={onContentChange}
-          placeholder={getPlaceholderText()}
-          placeholderTextColor={colors.textMuted}
-          autoCapitalize="sentences"
-          autoCorrect
-          keyboardType="default"
-          returnKeyType="default"
-          blurOnSubmit={false}
-          autoFocus={project.genre === 'just-write' && !content}
-        />
-      </View>
+      <GestureDetector gesture={swipeGesture}>
+        <View style={styles.editorContainer}>
+          <TextInput
+            style={[
+              styles.editor, 
+              { fontSize },
+              focusMode && styles.focusModeEditor
+            ]}
+            multiline
+            value={content}
+            onChangeText={onContentChange}
+            placeholder={getPlaceholderText()}
+            placeholderTextColor={colors.textMuted}
+            autoCapitalize="sentences"
+            autoCorrect
+            keyboardType="default"
+            returnKeyType="default"
+            blurOnSubmit={false}
+            autoFocus={project.genre === 'just-write' && !content}
+          />
+        </View>
+      </GestureDetector>
       
       {!keyboardVisible && !focusMode && (
         <View style={styles.footer}>
@@ -312,6 +376,31 @@ const styles = StyleSheet.create({
   },
   saveButtonText: {
     fontSize: 14,
+    fontWeight: '500',
+    color: colors.text,
+  },
+  webIndicator: {
+    position: 'absolute',
+    top: 100,
+    left: 0,
+    right: 0,
+    zIndex: 1000,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    padding: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    borderRadius: 8,
+    marginHorizontal: 40,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
+    elevation: 3,
+    gap: 12,
+  },
+  webIndicatorText: {
+    fontSize: 16,
     fontWeight: '500',
     color: colors.text,
   },

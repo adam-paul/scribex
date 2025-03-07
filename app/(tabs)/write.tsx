@@ -16,6 +16,9 @@ import supabaseService from '@/services/supabase-service';
 // Web app URL - replace with your actual Vercel deployment URL
 const WEB_APP_URL = 'https://scribex.vercel.app/web';
 
+// Import the web writer service
+import webWriterService from '@/services/web-writer-service';
+
 export default function WriteScreen() {
   // Authentication context
   const { isAuthenticated, loadUserData } = useAuth();
@@ -217,24 +220,58 @@ export default function WriteScreen() {
     }
   };
   
-  // Handle opening the web app
+  // Handle opening the web app with pairing
   const handleOpenWebApp = async () => {
     try {
-      // Save current projects to ensure they're available on web
-      const currentProjects = useWritingStore.getState().projects;
-      const projectsArray = Array.isArray(currentProjects) ? currentProjects : [];
-      await supabaseService.saveWritingProjects(projectsArray);
+      setLoading(true);
+      
+      // First save the current project if there is one
+      if (currentProject) {
+        const currentProjects = useWritingStore.getState().projects;
+        const projectsArray = Array.isArray(currentProjects) ? currentProjects : [];
+        await supabaseService.saveWritingProjects(projectsArray);
+      }
+      
+      // Generate a session token for this project
+      let projectId = currentProject?.id;
+      
+      // If there's no current project but we have temp content, create a "Just Write" project
+      if (!projectId) {
+        // Use activeProjectId if available
+        if (activeProjectId) {
+          projectId = activeProjectId;
+        } else {
+          Alert.alert('Error', 'Please open a project first or create a new one.');
+          setLoading(false);
+          return;
+        }
+      }
+      
+      // Generate the session token
+      const token = await webWriterService.generateSessionToken(projectId);
+      
+      if (!token) {
+        Alert.alert('Error', 'Failed to generate session token. Please try again.');
+        setLoading(false);
+        return;
+      }
+      
+      // Construct the URL with the token
+      const webUrl = `${WEB_APP_URL}?token=${token}`;
       
       // Open the web app URL
-      const canOpen = await Linking.canOpenURL(WEB_APP_URL);
+      const canOpen = await Linking.canOpenURL(webUrl);
       if (canOpen) {
-        await Linking.openURL(WEB_APP_URL);
+        await Linking.openURL(webUrl);
+        Alert.alert('Success', 'Web writer opened. Your project should appear there automatically.');
       } else {
         Alert.alert('Error', 'Cannot open the web app. Please try again later.');
       }
     } catch (error) {
       console.error('Error opening web app:', error);
       Alert.alert('Error', 'There was a problem opening the web app. Please try again.');
+    } finally {
+      setLoading(false);
     }
   };
   
@@ -351,6 +388,7 @@ export default function WriteScreen() {
         onSave={handleSave}
         focusMode={focusMode}
         onToggleFocusMode={toggleFocusMode}
+        onOpenInWeb={handleOpenWebApp}
       />
     </SafeAreaView>
   );

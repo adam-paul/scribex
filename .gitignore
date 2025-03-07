@@ -50,3 +50,5 @@ yarn-error.*
 SUPABASE_SETUP.md
 public/
 supabase-schema.sql
+web_refactor.md
+supabase/migrations/

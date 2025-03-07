@@ -4,6 +4,7 @@ import { Slot } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { useEffect } from "react";
 import { Platform, View, ActivityIndicator, AppState, AppStateStatus } from "react-native";
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { ErrorBoundary } from "./error-boundary";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
@@ -59,13 +60,15 @@ export default function RootLayout() {
 
   // Once fonts are loaded, render the app with auth provider
   return (
-    <ErrorBoundary>
-      <AuthProvider>
-        <ThemeProvider>
-          <RootLayoutNav />
-        </ThemeProvider>
-      </AuthProvider>
-    </ErrorBoundary>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <ErrorBoundary>
+        <AuthProvider>
+          <ThemeProvider>
+            <RootLayoutNav />
+          </ThemeProvider>
+        </AuthProvider>
+      </ErrorBoundary>
+    </GestureHandlerRootView>
   );
 }
 

@@ -1,401 +1,253 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, ActivityIndicator, Platform } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { router, Link } from 'expo-router';
-import { useAuth } from '@/contexts/AuthContext';
+import { View, StyleSheet, Text, TextInput, TouchableOpacity, Platform } from 'react-native';
 import { colors } from '@/constants/colors';
-import { Button } from '@/components/Button';
-import { useWritingStore } from '@/stores/writing-store';
+import { Save, Type, Plus, Minus } from 'lucide-react-native';
 import supabaseService from '@/services/supabase-service';
-import { WebHeader } from '../../components/WebHeader';
-import { WritingEditor } from '../../components/WritingEditor';
-import { WebProjectList } from '../../components/WebProjectList';
-import { CreateProjectModal } from '@/components/CreateProjectModal';
-import { WritingProject, WritingGenre } from '@/types';
-import { FolderPlus, PenSquare } from 'lucide-react-native';
+import { WritingProject } from '@/types';
 
-export default function WebWritingPage() {
-  // Authentication context
-  const { isAuthenticated } = useAuth();
-  
-  // Writing store state
-  const { 
-    projects = [], 
-    currentProject, 
-    activeProjectId,
-    createProject,
-    updateProject,
-    deleteProject,
-    setCurrentProject,
-    clearCurrentProject,
-    updateContent,
-  } = useWritingStore();
-  
-  // Local UI state
-  const [showCreateModal, setShowCreateModal] = useState(false);
-  const [showProjects, setShowProjects] = useState(true);
-  const [loading, setLoading] = useState(false);
-  const [tempContent, setTempContent] = useState('');
-  const [authTimeout, setAuthTimeout] = useState(false);
-  
-  // Add a timeout for authentication to prevent infinite loading
+export default function WebWriterPage() {
+  // State for the writing content and project
+  const [content, setContent] = useState('');
+  const [fontSize, setFontSize] = useState(16);
+  const [project, setProject] = useState<WritingProject | null>(null);
+  const [token, setToken] = useState<string | null>(null);
+  const [isConnected, setIsConnected] = useState(false);
+
+  // Get the token from the URL on mount
   useEffect(() => {
-    // Only set a timeout if we're on the web platform
-    if (Platform.OS === 'web') {
-      const timeoutId = setTimeout(() => {
-        console.log('Authentication timeout reached, showing auth screen');
-        setAuthTimeout(true);
-      }, 10000); // 10 second timeout
-      
-      return () => clearTimeout(timeoutId);
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const urlToken = params.get('token');
+      if (urlToken) {
+        setToken(urlToken);
+        validateToken(urlToken);
+        
+        // Set up periodic saving
+        const saveInterval = setInterval(() => {
+          saveContent(urlToken);
+        }, 30000); // Save every 30 seconds
+        
+        return () => clearInterval(saveInterval);
+      }
     }
   }, []);
   
-  // Remove redundant user data loading - now handled by AuthContext
-  useEffect(() => {
-    if (isAuthenticated) {
-      setLoading(true);
-      // Just set loading state for UI purposes
-      setTimeout(() => setLoading(false), 100);
-    }
-  }, [isAuthenticated]);
-  
-  // Handle initial state based on the three scenarios
-  useEffect(() => {
-    // If we already have a current project, keep it
-    if (currentProject) {
-      setShowProjects(false);
-      return;
-    }
+  // Save content back to the session token
+  const saveContent = async (tokenValue: string) => {
+    if (!content || !tokenValue) return;
     
-    // If we have an active project ID, try to load it
-    if (activeProjectId && showProjects) {
-      const project = projects.find(p => p.id === activeProjectId);
-      if (project) {
-        setCurrentProject(activeProjectId);
-        setShowProjects(false);
-        return;
-      }
-    }
-    
-    // Otherwise, show the project list
-    setShowProjects(true);
-  }, [currentProject, activeProjectId, projects, setCurrentProject]);
-  
-  // Handle creating a "Just Write" project
-  const handleJustWrite = () => {
-    // Clear any current project
-    clearCurrentProject();
-    // Reset temp content
-    setTempContent('');
-    // Show the editor
-    setShowProjects(false);
-  };
-  
-  // Handle project creation
-  const handleCreateProject = (title: string, genre: WritingGenre) => {
-    const newProject = createProject(title, genre);
-    
-    // If we have temporary content, add it to the new project
-    if (tempContent && genre === 'just-write') {
-      updateContent(tempContent);
-      setTempContent('');
-    }
-    
-    setShowProjects(false);
-    setShowCreateModal(false);
-  };
-  
-  // Handle project selection
-  const handleSelectProject = (project: WritingProject) => {
-    setCurrentProject(project.id);
-    setShowProjects(false);
-  };
-  
-  // Handle project deletion
-  const handleDeleteProject = (project: WritingProject) => {
-    if (window.confirm(`Are you sure you want to delete "${project.title}"? This cannot be undone.`)) {
-      deleteProject(project.id);
-    }
-  };
-  
-  // Handle saving the current project
-  const handleSave = async () => {
     try {
-      setLoading(true);
+      const { data, error } = await supabaseService.getClient().rpc('update_session_project', { 
+        token: tokenValue, 
+        project_update: { 
+          content, 
+          wordCount: content.trim().split(/\s+/).filter(Boolean).length || 0,
+          dateModified: new Date().toISOString() 
+        } 
+      });
       
-      // If there's no current project but we have content, create a "Just Write" project
-      if (!currentProject && tempContent.trim()) {
-        const timestamp = new Date();
-        const formattedDate = timestamp.toLocaleDateString('en-US', {
-          month: 'short',
-          day: 'numeric',
-          year: 'numeric',
-          hour: '2-digit',
-          minute: '2-digit'
-        });
-        
-        const newProject = createProject(`Just Write - ${formattedDate}`, 'just-write');
-        updateContent(tempContent);
-        setTempContent('');
-      }
-      
-      // Get the projects array from the store
-      const currentProjects = useWritingStore.getState().projects;
-      
-      // Make sure we have an array to prevent nesting issues
-      const projectsArray = Array.isArray(currentProjects) ? currentProjects : [];
-      
-      // Force a sync with backend using Supabase service directly
-      const success = await supabaseService.saveWritingProjects(projectsArray);
-      
-      setLoading(false);
-      
-      if (success) {
-        alert('Your writing has been saved successfully to the cloud.');
-      } else {
-        alert('Writing saved locally, but there was an issue saving to the cloud.');
+      if (error) {
+        console.error('Error saving content:', error);
       }
     } catch (error) {
-      setLoading(false);
-      console.error('Error during save:', error);
-      alert('There was a problem saving your writing. Please try again.');
+      console.error('Exception saving content:', error);
     }
   };
-  
-  // Handle going back to project list
-  const handleBackToProjects = async () => {
-    // If we have unsaved content in the temp editor, ask if the user wants to save it
-    if (!currentProject && tempContent.trim()) {
-      if (window.confirm('Do you want to save your writing before viewing projects?')) {
-        await handleSave();
-      } else {
-        setTempContent('');
+
+  // Handle manual save
+  const handleSave = async () => {
+    if (token) {
+      await saveContent(token);
+    }
+  };
+
+  // Validate the token and load project if valid
+  const validateToken = async (tokenValue: string) => {
+    try {
+      const { data, error } = await supabaseService.getClient().rpc('validate_session_token', { token: tokenValue });
+      
+      if (error) {
+        console.error('Token validation error:', error);
+        return;
       }
-      setShowProjects(true);
-      return;
-    }
-    
-    // Save current changes before navigating back
-    if (currentProject) {
-      try {
-        // Sync with backend to ensure all latest changes are saved
-        const currentProjects = useWritingStore.getState().projects;
-        
-        // Make sure we have an array to prevent nesting issues
-        const projectsArray = Array.isArray(currentProjects) ? currentProjects : [];
-        
-        await supabaseService.saveWritingProjects(projectsArray);
-      } catch (error) {
-        console.error("Error saving before navigation:", error);
-        // Continue with navigation even if save fails
+      
+      if (data && data.valid) {
+        // Set the project from the token data
+        if (data.project) {
+          setProject(data.project);
+          setContent(data.project.content || '');
+          setIsConnected(true);
+        }
       }
-    }
-    
-    clearCurrentProject();
-    setShowProjects(true);
-  };
-  
-  // Handle content changes in the editor
-  const handleContentChange = (content: string) => {
-    if (currentProject) {
-      // If we have a current project, update its content
-      updateContent(content);
-    } else {
-      // Otherwise, store the content temporarily
-      setTempContent(content);
+    } catch (error) {
+      console.error('Error validating token:', error);
     }
   };
+
+  // Calculate word count
+  const wordCount = content.trim().split(/\s+/).filter(Boolean).length || 0;
+
+  // Font size controls
+  const increaseFontSize = () => {
+    setFontSize(prev => Math.min(prev + 2, 24));
+  };
   
-  // If not authenticated or auth timed out, show login screen
-  if (!isAuthenticated || authTimeout) {
-    return (
-      <SafeAreaView style={styles.container}>
-        <WebHeader />
-        <View style={styles.authContainer}>
-          <Text style={styles.title}>ScribeX Web Writer</Text>
-          <Text style={styles.subtitle}>Please sign in to access your writing projects</Text>
-          <Button 
-            title="Sign In" 
-            onPress={() => router.push('/')}
-            variant="primary"
-            size="large"
-            style={styles.authButton}
-          />
-          {authTimeout && (
-            <Text style={styles.errorText}>
-              Authentication timed out. Please try signing in again.
-            </Text>
-          )}
-        </View>
-      </SafeAreaView>
-    );
-  }
-  
-  // Render project list screen
-  if (showProjects) {
-    return (
-      <SafeAreaView style={styles.container}>
-        <WebHeader />
-        <View style={styles.content}>
-          <View style={styles.header}>
-            <Text style={styles.title}>My Writing Projects</Text>
-            <Text style={styles.subtitle}>Continue working on existing projects or start something new</Text>
-          </View>
-          
-          <View style={styles.actionButtons}>
-            <Button
-              title="Just Write"
-              icon={<PenSquare size={16} color={colors.surface} />}
-              onPress={handleJustWrite}
-              variant="primary"
-              size="medium"
-              style={styles.actionButton}
-            />
-            <Button
-              title="New Project"
-              icon={<FolderPlus size={16} color={colors.surface} />}
-              onPress={() => setShowCreateModal(true)}
-              variant="secondary"
-              size="medium"
-              style={styles.actionButton}
-            />
-          </View>
-          
-          {loading && (
-            <View style={styles.loadingContainer}>
-              <ActivityIndicator color={colors.primary} size="small" />
-            </View>
-          )}
-          
-          {(!projects || projects.length === 0) && !loading ? (
-            <View style={styles.emptyState}>
-              <Text style={styles.emptyStateText}>
-                No writing projects found. Create a new project or just start writing!
-              </Text>
-            </View>
-          ) : (
-            <WebProjectList 
-              projects={projects || []} 
-              onSelectProject={handleSelectProject}
-              onDeleteProject={handleDeleteProject}
-            />
-          )}
-          
-          <CreateProjectModal
-            visible={showCreateModal}
-            onClose={() => setShowCreateModal(false)}
-            onCreateProject={handleCreateProject}
-          />
-        </View>
-      </SafeAreaView>
-    );
-  }
-  
-  // Render editor screen when a project is selected or in "Just Write" mode
+  const decreaseFontSize = () => {
+    setFontSize(prev => Math.max(prev - 2, 12));
+  };
+
   return (
-    <SafeAreaView style={styles.container}>
-      <WebHeader showBackButton onBackPress={handleBackToProjects} />
-      <View style={styles.content}>
-        <View style={styles.editorHeader}>
-          <Text style={styles.projectTitle}>
-            {currentProject ? currentProject.title : "Just Write"}
+    <View style={styles.container}>
+      {/* Subtle connected indicator */}
+      {isConnected && (
+        <View style={styles.connectedIndicator}>
+          <Text style={styles.connectedText}>
+            {project?.title || 'Connected'}
           </Text>
         </View>
-        
-        <WritingEditor
-          project={currentProject || { 
-            id: 'temp',
-            title: 'Just Write',
-            content: tempContent,
-            genre: 'just-write',
-            wordCount: tempContent.trim().split(/\s+/).filter(Boolean).length || 0,
-            dateCreated: new Date().toISOString(),
-            dateModified: new Date().toISOString(),
-            isCompleted: false
-          }}
-          content={currentProject ? currentProject.content : tempContent}
-          onContentChange={handleContentChange}
-          onSave={handleSave}
-          focusMode={false}
+      )}
+
+      {/* Editor toolbar */}
+      <View style={styles.toolbar}>
+        <View style={styles.toolbarLeft}>
+          <View style={styles.fontSizeControls}>
+            <TouchableOpacity 
+              style={styles.toolbarButton}
+              onPress={decreaseFontSize}
+            >
+              <Minus size={16} color={colors.textSecondary} />
+            </TouchableOpacity>
+            
+            <View style={styles.fontSizeDisplay}>
+              <Type size={14} color={colors.textSecondary} />
+              <Text style={styles.fontSizeText}>{fontSize}</Text>
+            </View>
+            
+            <TouchableOpacity 
+              style={styles.toolbarButton}
+              onPress={increaseFontSize}
+            >
+              <Plus size={16} color={colors.textSecondary} />
+            </TouchableOpacity>
+          </View>
+          
+          <Text style={styles.wordCount}>
+            Words: {wordCount}
+          </Text>
+        </View>
+
+        {token && (
+          <TouchableOpacity 
+            style={styles.saveButton}
+            onPress={handleSave}
+          >
+            <Save size={16} color={colors.text} />
+            <Text style={styles.saveButtonText}>Save</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+      
+      {/* Editor area */}
+      <View style={styles.editorContainer}>
+        <TextInput
+          style={[styles.editor, { fontSize }]}
+          multiline
+          value={content}
+          onChangeText={setContent}
+          placeholder="Start writing..."
+          placeholderTextColor={colors.textMuted}
+          textAlignVertical="top"
+          autoCapitalize="sentences"
+          autoCorrect
+          autoFocus
         />
       </View>
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: '#f7f5ee', // Off-white / beige paper-like texture
   },
-  content: {
-    flex: 1,
-    maxWidth: 1200,
-    width: '100%',
-    alignSelf: 'center',
-    padding: 24,
+  connectedIndicator: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    padding: 8,
+    backgroundColor: 'rgba(0, 0, 0, 0.1)',
+    borderRadius: 4,
+    zIndex: 10,
   },
-  header: {
-    marginBottom: 24,
+  connectedText: {
+    fontSize: 12,
+    color: 'rgba(0, 0, 0, 0.5)',
   },
-  title: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    color: colors.text,
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 16,
-    color: colors.textSecondary,
-    marginBottom: 24,
-  },
-  actionButtons: {
+  toolbar: {
     flexDirection: 'row',
-    marginBottom: 24,
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.8)',
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(0, 0, 0, 0.1)',
+  },
+  toolbarLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 16,
   },
-  actionButton: {
-    minWidth: 150,
+  toolbarButton: {
+    padding: 8,
   },
-  loadingContainer: {
-    padding: 16,
+  fontSizeControls: {
+    flexDirection: 'row',
     alignItems: 'center',
+    gap: 4,
   },
-  emptyState: {
-    padding: 24,
+  fontSizeDisplay: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.surface,
-    borderRadius: 8,
-    marginTop: 24,
+    gap: 4,
+    paddingHorizontal: 8,
   },
-  emptyStateText: {
-    fontSize: 16,
+  fontSizeText: {
+    fontSize: 14,
     color: colors.textSecondary,
-    textAlign: 'center',
+  },
+  editorContainer: {
+    flex: 1,
+    padding: 16,
+  },
+  editor: {
+    flex: 1,
+    color: colors.text,
+    fontSize: 16,
     lineHeight: 24,
+    ...(Platform.OS === 'web' && {
+      outlineStyle: 'none',
+      fontFamily: 'Georgia, serif',
+      minHeight: 500,
+    }),
   },
-  editorHeader: {
-    marginBottom: 16,
+  wordCount: {
+    fontSize: 14,
+    color: colors.textSecondary,
   },
-  projectTitle: {
-    fontSize: 24,
-    fontWeight: '600',
+  saveButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    backgroundColor: 'rgba(0, 0, 0, 0.05)',
+    borderRadius: 6,
+  },
+  saveButtonText: {
+    fontSize: 14,
+    fontWeight: '500',
     color: colors.text,
   },
-  authContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 24,
-  },
-  authButton: {
-    minWidth: 200,
-    marginTop: 24,
-  },
-  errorText: {
-    color: colors.error,
-    marginTop: 16,
-  },
-}); 
+});
