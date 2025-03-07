@@ -275,6 +275,7 @@ export default function WebWriterPage() {
         <>
           {/* Editor toolbar */}
           <View style={styles.toolbar}>
+            {/* Left section with font controls */}
             <View style={styles.toolbarLeft}>
               <View style={styles.fontSizeControls}>
                 <TouchableOpacity 
@@ -302,25 +303,27 @@ export default function WebWriterPage() {
               </Text>
             </View>
 
-            {/* Project title in the center */}
-            {isConnected && project && (
-              <View style={styles.projectTitleContainer}>
+            {/* Center section with project title */}
+            <View style={styles.toolbarCenter}>
+              {isConnected && project && (
                 <Text style={styles.projectTitle} numberOfLines={1} ellipsizeMode="tail">
                   {project?.title || 'Untitled Project'}
                 </Text>
-              </View>
-            )}
+              )}
+            </View>
 
-            {/* Save button on the right */}
-            {token && (
-              <TouchableOpacity 
-                style={styles.saveButton}
-                onPress={handleSave}
-              >
-                <Save size={16} color={colors.text} />
-                <Text style={styles.saveButtonText}>Save</Text>
-              </TouchableOpacity>
-            )}
+            {/* Right section with save button */}
+            <View style={styles.toolbarRight}>
+              {token && (
+                <TouchableOpacity 
+                  style={styles.saveButton}
+                  onPress={handleSave}
+                >
+                  <Save size={16} color={colors.text} />
+                  <Text style={styles.saveButtonText}>Save</Text>
+                </TouchableOpacity>
+              )}
+            </View>
           </View>
           
           {/* Editor area */}
@@ -436,7 +439,6 @@ const styles = StyleSheet.create({
   toolbar: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingVertical: 12,
     backgroundColor: 'rgba(255, 255, 255, 0.8)',
@@ -449,17 +451,23 @@ const styles = StyleSheet.create({
     gap: 16,
     flex: 1,
   },
-  projectTitleContainer: {
+  toolbarCenter: {
     flex: 2,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 10,
+  },
+  toolbarRight: {
+    flex: 1,
+    alignItems: 'flex-end',
+    justifyContent: 'center',
   },
   projectTitle: {
     fontSize: 16,
     fontWeight: '600',
     color: colors.text,
     textAlign: 'center',
+    maxWidth: '100%',
   },
   toolbarButton: {
     padding: 8,
@@ -506,8 +514,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     backgroundColor: 'rgba(0, 0, 0, 0.05)',
     borderRadius: 6,
-    flex: 1,
-    justifyContent: 'flex-end',
   },
   saveButtonText: {
     fontSize: 14,
