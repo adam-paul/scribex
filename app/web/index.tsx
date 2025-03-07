@@ -12,6 +12,11 @@ export default function WebWriterPage() {
   const [project, setProject] = useState<WritingProject | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [isConnected, setIsConnected] = useState(false);
+  
+  // Pairing state
+  const [showPairingInput, setShowPairingInput] = useState(true);
+  const [pairingCode, setPairingCode] = useState('');
+  const [pairingError, setPairingError] = useState<string | null>(null);
 
   // Get the token from the URL on mount
   useEffect(() => {
@@ -21,6 +26,7 @@ export default function WebWriterPage() {
       if (urlToken) {
         setToken(urlToken);
         validateToken(urlToken);
+        setShowPairingInput(false);
         
         // Set up periodic saving
         const saveInterval = setInterval(() => {
@@ -31,6 +37,53 @@ export default function WebWriterPage() {
       }
     }
   }, []);
+  
+  // Handle pairing code submission
+  const handleSubmitPairingCode = async () => {
+    if (!pairingCode || pairingCode.length < 6) {
+      setPairingError('Please enter a valid 6-character code');
+      return;
+    }
+    
+    try {
+      setPairingError(null);
+      
+      // Call the RPC function to validate the pairing code
+      const { data, error } = await supabaseService.getClient()
+        .rpc('validate_pairing_code', { code_to_validate: pairingCode });
+        
+      if (error) {
+        console.error('Error validating pairing code:', error);
+        setPairingError('Failed to validate code. Please try again.');
+        return;
+      }
+      
+      if (data && data.valid && data.token) {
+        console.log('Pairing successful, token:', data.token);
+        setToken(data.token);
+        validateToken(data.token);
+        setShowPairingInput(false);
+        
+        // Set up periodic saving
+        const saveInterval = setInterval(() => {
+          saveContent(data.token);
+        }, 30000);
+        
+        // Update browser URL with token for refreshing
+        if (typeof window !== 'undefined' && window.history) {
+          const newUrl = window.location.pathname + '?token=' + data.token;
+          window.history.replaceState({}, '', newUrl);
+        }
+        
+        return () => clearInterval(saveInterval);
+      } else {
+        setPairingError('Invalid or expired pairing code. Please try again.');
+      }
+    } catch (error) {
+      console.error('Exception in pairing code validation:', error);
+      setPairingError('An error occurred. Please try again.');
+    }
+  };
   
   // Save content back to the session token
   const saveContent = async (tokenValue: string) => {
@@ -98,70 +151,112 @@ export default function WebWriterPage() {
 
   return (
     <View style={styles.container}>
-      {/* Subtle connected indicator */}
-      {isConnected && (
-        <View style={styles.connectedIndicator}>
-          <Text style={styles.connectedText}>
-            {project?.title || 'Connected'}
+      {showPairingInput ? (
+        // Pairing Input Screen
+        <View style={styles.pairingContainer}>
+          <Text style={styles.pairingTitle}>Connect to ScribeX</Text>
+          <Text style={styles.pairingDescription}>
+            Enter the 6-character pairing code from your mobile app
           </Text>
-        </View>
-      )}
 
-      {/* Editor toolbar */}
-      <View style={styles.toolbar}>
-        <View style={styles.toolbarLeft}>
-          <View style={styles.fontSizeControls}>
-            <TouchableOpacity 
-              style={styles.toolbarButton}
-              onPress={decreaseFontSize}
-            >
-              <Minus size={16} color={colors.textSecondary} />
-            </TouchableOpacity>
-            
-            <View style={styles.fontSizeDisplay}>
-              <Type size={14} color={colors.textSecondary} />
-              <Text style={styles.fontSizeText}>{fontSize}</Text>
-            </View>
+          <View style={styles.codeInputContainer}>
+            <TextInput
+              style={styles.codeInput}
+              value={pairingCode}
+              onChangeText={(text) => setPairingCode(text.toUpperCase())}
+              placeholder="Enter code"
+              placeholderTextColor={colors.textMuted}
+              maxLength={6}
+              autoCapitalize="characters"
+              autoCorrect={false}
+              autoFocus
+            />
             
             <TouchableOpacity 
-              style={styles.toolbarButton}
-              onPress={increaseFontSize}
+              style={styles.submitButton} 
+              onPress={handleSubmitPairingCode}
             >
-              <Plus size={16} color={colors.textSecondary} />
+              <Text style={styles.submitButtonText}>Connect</Text>
             </TouchableOpacity>
           </View>
           
-          <Text style={styles.wordCount}>
-            Words: {wordCount}
+          {pairingError && (
+            <Text style={styles.errorText}>{pairingError}</Text>
+          )}
+          
+          <Text style={styles.helpText}>
+            Open ScribeX mobile app and tap "Open in Web Browser" to get your pairing code.
           </Text>
         </View>
+      ) : (
+        // Editor Screen
+        <>
+          {/* Subtle connected indicator */}
+          {isConnected && (
+            <View style={styles.connectedIndicator}>
+              <Text style={styles.connectedText}>
+                {project?.title || 'Connected'}
+              </Text>
+            </View>
+          )}
 
-        {token && (
-          <TouchableOpacity 
-            style={styles.saveButton}
-            onPress={handleSave}
-          >
-            <Save size={16} color={colors.text} />
-            <Text style={styles.saveButtonText}>Save</Text>
-          </TouchableOpacity>
-        )}
-      </View>
-      
-      {/* Editor area */}
-      <View style={styles.editorContainer}>
-        <TextInput
-          style={[styles.editor, { fontSize }]}
-          multiline
-          value={content}
-          onChangeText={setContent}
-          placeholder="Start writing..."
-          placeholderTextColor={colors.textMuted}
-          textAlignVertical="top"
-          autoCapitalize="sentences"
-          autoCorrect
-          autoFocus
-        />
-      </View>
+          {/* Editor toolbar */}
+          <View style={styles.toolbar}>
+            <View style={styles.toolbarLeft}>
+              <View style={styles.fontSizeControls}>
+                <TouchableOpacity 
+                  style={styles.toolbarButton}
+                  onPress={decreaseFontSize}
+                >
+                  <Minus size={16} color={colors.textSecondary} />
+                </TouchableOpacity>
+                
+                <View style={styles.fontSizeDisplay}>
+                  <Type size={14} color={colors.textSecondary} />
+                  <Text style={styles.fontSizeText}>{fontSize}</Text>
+                </View>
+                
+                <TouchableOpacity 
+                  style={styles.toolbarButton}
+                  onPress={increaseFontSize}
+                >
+                  <Plus size={16} color={colors.textSecondary} />
+                </TouchableOpacity>
+              </View>
+              
+              <Text style={styles.wordCount}>
+                Words: {wordCount}
+              </Text>
+            </View>
+
+            {token && (
+              <TouchableOpacity 
+                style={styles.saveButton}
+                onPress={handleSave}
+              >
+                <Save size={16} color={colors.text} />
+                <Text style={styles.saveButtonText}>Save</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+          
+          {/* Editor area */}
+          <View style={styles.editorContainer}>
+            <TextInput
+              style={[styles.editor, { fontSize }]}
+              multiline
+              value={content}
+              onChangeText={setContent}
+              placeholder="Start writing..."
+              placeholderTextColor={colors.textMuted}
+              textAlignVertical="top"
+              autoCapitalize="sentences"
+              autoCorrect
+              autoFocus
+            />
+          </View>
+        </>
+      )}
     </View>
   );
 }
@@ -171,6 +266,77 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#f7f5ee', // Off-white / beige paper-like texture
   },
+  // Pairing screen styles
+  pairingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+    maxWidth: 600,
+    alignSelf: 'center',
+    width: '100%',
+  },
+  pairingTitle: {
+    fontSize: 32,
+    fontWeight: 'bold',
+    marginBottom: 16,
+    color: colors.text,
+    textAlign: 'center',
+  },
+  pairingDescription: {
+    fontSize: 18,
+    marginBottom: 48,
+    color: colors.textSecondary,
+    textAlign: 'center',
+  },
+  codeInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 24,
+    width: '100%',
+    maxWidth: 400,
+  },
+  codeInput: {
+    flex: 1,
+    fontSize: 24,
+    backgroundColor: 'rgba(255, 255, 255, 0.8)',
+    borderRadius: 8,
+    padding: 16,
+    marginRight: 16,
+    color: colors.text,
+    fontWeight: 'bold',
+    textAlign: 'center',
+    letterSpacing: 4,
+    ...(Platform.OS === 'web' && {
+      outlineStyle: 'none',
+    }),
+  },
+  submitButton: {
+    backgroundColor: colors.primary,
+    borderRadius: 8,
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  submitButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  errorText: {
+    color: 'red',
+    marginBottom: 24,
+    fontSize: 16,
+  },
+  helpText: {
+    color: colors.textSecondary,
+    fontSize: 14,
+    marginTop: 24,
+    textAlign: 'center',
+    maxWidth: 400,
+  },
+  // Editor screen styles
   connectedIndicator: {
     position: 'absolute',
     top: 10,

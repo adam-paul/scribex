@@ -1,6 +1,6 @@
 import supabaseService from './supabase-service';
 import { WritingProject } from '@/types';
-import { nanoid } from 'nanoid';
+import { nanoid } from 'nanoid/non-secure';
 
 /**
  * Service for handling web writer pairing functionality
