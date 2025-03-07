@@ -97,18 +97,24 @@ export default function ExerciseScreen() {
           const exercisesNeeded = !exerciseData ? MAX_EXERCISES_PER_LEVEL : MAX_EXERCISES_PER_LEVEL - exerciseData.exercises.length;
           console.log(`Need to generate ${exercisesNeeded} exercises for level ${id}`);
           
-          // Clear any existing background generation tasks for other levels and start new one
+          // Check if there's already an active generation task for this level
           const currentTasks = Object.keys(lessonStore.activeGenerationTasks);
+          const isAlreadyGenerating = currentTasks.includes(id);
           
-          // Cancel other tasks by starting a new one for this level
-          if (currentTasks.length > 0) {
-            console.log(`Cancelling background generation for other levels to focus on ${id}`);
-            // The preloadRemainingExercises function will automatically clear other tasks
-            // when starting a new one for this level
+          // Only start a new generation if one isn't already running for this level
+          if (!isAlreadyGenerating) {
+            // Cancel other tasks by starting a new one for this level
+            if (currentTasks.length > 0) {
+              console.log(`Cancelling background generation for other levels to focus on ${id}`);
+              // The preloadRemainingExercises function will automatically clear other tasks
+              // when starting a new one for this level
+            }
+            
+            // Start background generation for remaining exercises
+            lessonStore.preloadRemainingExercises(id, exercisesNeeded);
+          } else {
+            console.log(`Exercise generation for ${id} already in progress, not starting another task`);
           }
-          
-          // Start background generation for remaining exercises
-          lessonStore.preloadRemainingExercises(id, exercisesNeeded);
           
           // Keep checking for exercises until we have at least one
           let retryCount = 0;

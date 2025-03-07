@@ -60,7 +60,14 @@ export default function MapScreen() {
       // Trigger prioritized lesson preloading after content unlocks are checked
       console.log('Starting exercise preloading for highest unlocked level');
       const useLessonStoreState = useLessonStore.getState();
-      useLessonStoreState.preloadPrioritizedLessons();
+      
+      // Check if there are already active generation tasks before starting new ones
+      const currentTasks = Object.keys(useLessonStoreState.activeGenerationTasks);
+      if (currentTasks.length === 0) {
+        useLessonStoreState.preloadPrioritizedLessons();
+      } else {
+        console.log(`Exercise generation already in progress for levels: ${currentTasks.join(', ')}`);
+      }
     };
     
     checkForUnlocks();
