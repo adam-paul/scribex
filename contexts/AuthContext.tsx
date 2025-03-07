@@ -18,6 +18,7 @@ interface AuthContextType {
   signOut: () => Promise<void>;
   loadUserData: () => Promise<void>;
   updateUserProfile: (profileData: Partial<UserProfile>) => Promise<UserProfile | null>;
+  refreshUserProfile: () => Promise<void>;
 }
 
 // Create the context with a default value
@@ -28,6 +29,7 @@ const AuthContext = createContext<AuthContextType>({
   signOut: async () => {},
   loadUserData: async () => {},
   updateUserProfile: async () => null,
+  refreshUserProfile: async () => {},
 });
 
 // Hook for components to get the auth context
@@ -208,6 +210,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  // Add new refreshUserProfile function
+  const refreshUserProfile = async (): Promise<void> => {
+    if (!user) return;
+    
+    try {
+      const refreshedUser = await supabaseService.refreshUser();
+      setUser(refreshedUser);
+    } catch (error) {
+      console.error('Error refreshing user profile:', error);
+    }
+  };
+
   // Context value
   const value = useMemo(() => ({
     user,
@@ -216,7 +230,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     signOut,
     loadUserData,
     updateUserProfile,
-  }), [user, isLoading, signOut, loadUserData, updateUserProfile]);
+    refreshUserProfile,
+  }), [user, isLoading, signOut, loadUserData, updateUserProfile, refreshUserProfile]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

@@ -12,7 +12,7 @@ import { useProgressStore } from '@/stores/progress-store';
 import supabaseService from '@/services/supabase-service';
 
 export default function ProfileScreen() {
-  const { user, isAuthenticated, signOut, loadUserData } = useAuth();
+  const { user, isAuthenticated, signOut, loadUserData, refreshUserProfile } = useAuth();
   const router = useRouter();
   const [refreshing, setRefreshing] = useState(false);
   const [userRank, setUserRank] = useState<number | null>(null);
@@ -50,15 +50,13 @@ export default function ProfileScreen() {
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     try {
-      // Explicitly refresh user data on pull-to-refresh
-      await Promise.all([
-        loadUserData(),
-        loadUserRank()
-      ]);
+      // Only refresh user profile data
+      await refreshUserProfile();
+      await loadUserRank();
     } finally {
       setRefreshing(false);
     }
-  }, [loadUserData, loadUserRank]);
+  }, [refreshUserProfile, loadUserRank]);
   
   // Just load rank when component mounts
   useEffect(() => {
