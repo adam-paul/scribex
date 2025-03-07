@@ -59,18 +59,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         useLessonStore.getState().clearAllExercises();
         
         // Load all data in parallel for better performance
-        const [progressData, writingData, userProfile] = await Promise.all([
-          supabaseService.getProgress('AuthContext.loadUserData'),
+        const [writingData, userProfile] = await Promise.all([
           supabaseService.getWritingProjects('AuthContext.loadUserData'),
           supabaseService.getUserProfile('AuthContext.loadUserData')
         ]);
         
-        // Set progress data or reset to default
-        if (progressData) {
-          setProgress(progressData);
-        } else {
-          resetProgress();
-        }
+        // Load progress data using the new method
+        await useProgressStore.getState().loadServerData();
         
         // Set writing projects or empty array
         setProjects(writingData || []);
@@ -96,7 +91,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         console.error('Error loading user data:', error);
       }
     };
-  }, [user, setProgress, resetProgress, setProjects]);
+  }, [user, setProjects]);
 
   // Set up auth state once
   useEffect(() => {

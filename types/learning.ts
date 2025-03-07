@@ -35,16 +35,6 @@ export interface Challenge extends NamedEntity {
 }
 
 /**
- * Achievement that can be unlocked by users
- */
-export interface Achievement extends BaseEntity {
-  title: string;
-  description: string;
-  icon: string;
-  unlockedAt: string;
-}
-
-/**
  * Tracks overall user progress across the application
  */
 export interface UserProgress {
@@ -52,8 +42,7 @@ export interface UserProgress {
   levelProgress: { [key: string]: number };  // Track progress per level
   completedLevels: string[];
   unlockedLevels: string[];
-  totalScore: number;
+  totalXp: number;
   dailyStreak: number;
-  achievements: Achievement[];
   lastUpdated: number;
 }
