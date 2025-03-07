@@ -1,31 +1,33 @@
 import React, { useEffect } from 'react';
 import { Redirect } from 'expo-router';
-import { View, ActivityIndicator, Text, StyleSheet } from 'react-native';
+import { View, ActivityIndicator, Text, StyleSheet, Platform } from 'react-native';
 import { useAuth } from '@/contexts/AuthContext';
 import { colors } from '@/constants/colors';
 import { useProgressStore } from '@/stores/progress-store';
 
 /**
  * This is the entry point of the app.
- * It redirects to either auth or tabs based on authentication status.
- * We use a minimal approach to prevent any flashing.
+ * It detects platform and redirects accordingly:
+ * - On web: redirects directly to the web writer
+ * - On mobile: redirects to auth or tabs based on authentication status
  */
 export default function Index() {
   const { isAuthenticated, isLoading } = useAuth();
   const loadServerData = useProgressStore(state => state.loadServerData);
-  
-  // Add logging to help debug navigation issues
-  // Access the loadUserData function from auth context
   const { loadUserData } = useAuth();
 
+  // For deployed web version, detect if this is running in a browser
+  const isRunningInBrowser = Platform.OS === 'web' && 
+    typeof window !== 'undefined' && 
+    !/localhost|192\.168/.test(window.location.hostname); // Skip for local dev
+
   useEffect(() => {
-    if (!isLoading) {
-      console.log('Root index rendering with auth state:', { isAuthenticated, isLoading });
+    if (!isLoading && !isRunningInBrowser) {
+      console.log('Root index rendering with auth state:', { isAuthenticated, isLoading, platform: Platform.OS });
     }
     
-    // Preload user data when authenticated
-    if (isAuthenticated && !isLoading) {
-      // Load both progress data and writing projects
+    // Preload user data when authenticated (mobile only)
+    if (isAuthenticated && !isLoading && !isRunningInBrowser) {
       console.log('Loading user data and server data');
       loadServerData();
       loadUserData();
@@ -33,8 +35,7 @@ export default function Index() {
   }, [isAuthenticated, isLoading, loadServerData, loadUserData]);
   
   // While checking auth, show a clean loading screen
-  // This prevents any flashing of content
-  if (isLoading) {
+  if (isLoading && !isRunningInBrowser) {
     return (
       <View style={styles.container}>
         <ActivityIndicator size="large" color={colors.primary} />
@@ -42,8 +43,13 @@ export default function Index() {
     );
   }
   
-  // Redirect based on authentication status
-  // No visible content here to prevent flashing
+  // For web deployment, bypass auth flow completely and go straight to web writer
+  if (isRunningInBrowser) {
+    console.log('Web deployment detected, redirecting directly to web writer');
+    return <Redirect href="/web" />;
+  }
+  
+  // For mobile app, maintain original behavior
   if (isAuthenticated) {
     console.log('Root index redirecting to tabs');
     return <Redirect href="/(tabs)" />;
