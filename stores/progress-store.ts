@@ -163,6 +163,10 @@ export const useProgressStore = create<ProgressState>()(
       
       // Check progress and unlock next levels and categories if thresholds are met
       checkAndUnlockNextContent: async () => {
+        // First, ensure we have the latest data from the server
+        await get().loadServerData();
+        
+        // Get the latest progress state AFTER loading from server
         const { progress } = get();
         const { levelProgress, unlockedLevels, completedLevels, currentLevel, totalXp } = progress;
         
