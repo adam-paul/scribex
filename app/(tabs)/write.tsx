@@ -1,8 +1,9 @@
-import { StyleSheet, View, Text, Alert, ActivityIndicator, Linking, Platform } from 'react-native';
+import { StyleSheet, View, Text, Alert, ActivityIndicator, Linking, Platform, Modal, TouchableOpacity, Animated } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { router } from 'expo-router';
-import { FolderPlus, Sparkles, ArrowLeftCircle, Edit, ExternalLink } from 'lucide-react-native';
+import { FolderPlus, Sparkles, ArrowLeftCircle, Edit, ExternalLink, X, ArrowUp, Copy, Check } from 'lucide-react-native';
+import { GestureDetector, Gesture } from 'react-native-gesture-handler';
 import { colors } from '@/constants/colors';
 import { Button } from '@/components/Button';
 import { ProjectList } from '@/components/ProjectList';
@@ -13,8 +14,11 @@ import { WritingGenre, WritingProject } from '@/types';
 import { useAuth } from '@/contexts/AuthContext';
 import supabaseService from '@/services/supabase-service';
 
-// Web app URL - replace with your actual Vercel deployment URL
-const WEB_APP_URL = 'https://scribex.vercel.app/web';
+// Web app URL - root URL of your Vercel deployment
+const WEB_APP_URL = 'https://scribex.vercel.app';
+
+// Import the web writer service
+import webWriterService from '@/services/web-writer-service';
 
 export default function WriteScreen() {
   // Authentication context
@@ -41,8 +45,73 @@ export default function WriteScreen() {
   const [loading, setLoading] = useState(false);
   const [tempContent, setTempContent] = useState(''); // Store unsaved content
   
-  // Data is now loaded at app root level
-  // No need to load again here
+  // State for pairing overlay and web indicator
+  const [showPairingOverlay, setShowPairingOverlay] = useState(false);
+  const [pairingCode, setPairingCode] = useState('');
+  const [isPaired, setIsPaired] = useState(false);
+  const [pairingToken, setPairingToken] = useState<string | null>(null);
+  const [showWebIndicator, setShowWebIndicator] = useState(false);
+  
+  // Animation value for web indicator
+  const webIndicatorOpacity = useRef(new Animated.Value(0)).current;
+  
+  // Web indicator animations
+  const animateWebIndicator = (show: boolean) => {
+    Animated.timing(webIndicatorOpacity, {
+      toValue: show ? 1 : 0,
+      duration: 200,
+      useNativeDriver: true,
+    }).start();
+  };
+  
+  // Set up swipe gesture for projects page
+  const swipeGesture = Gesture.Pan()
+    .onStart(() => {
+      if (isPaired) {
+        setShowWebIndicator(true);
+        animateWebIndicator(true);
+      }
+    })
+    .onUpdate((event) => {
+      // If swipe is upward and strong enough
+      if (isPaired && event.translationY < -120) {
+        setShowWebIndicator(true);
+        animateWebIndicator(true);
+      } else {
+        animateWebIndicator(false);
+      }
+    })
+    .onEnd((event) => {
+      // If gesture was a strong upward swipe
+      if (isPaired && event.translationY < -150 && event.velocityY < -200) {
+        // Trigger send to web
+        handleSendToWeb();
+      }
+      
+      // Hide the indicator
+      animateWebIndicator(false);
+      setTimeout(() => setShowWebIndicator(false), 300);
+    });
+  
+  // Ensure we have the latest projects from the backend
+  useEffect(() => {
+    const loadProjects = async () => {
+      try {
+        if (isAuthenticated) {
+          console.log('Write tab: Loading writing projects from backend');
+          const writingData = await supabaseService.getWritingProjects('write.onMount');
+          if (writingData && writingData.length > 0) {
+            console.log(`Loaded ${writingData.length} writing projects from backend`);
+            useWritingStore.setState({ projects: writingData });
+          }
+        }
+      } catch (error) {
+        console.error('Error loading writing projects:', error);
+      }
+    };
+    
+    loadProjects();
+  }, [isAuthenticated]);
   
   // Handle initial state based on the three scenarios
   useEffect(() => {
@@ -217,25 +286,171 @@ export default function WriteScreen() {
     }
   };
   
-  // Handle opening the web app
+  // This duplicate state declaration has been removed
+  
+  // Handle opening the web app with pairing
   const handleOpenWebApp = async () => {
     try {
-      // Save current projects to ensure they're available on web
+      setLoading(true);
+      
+      // First save any current projects
       const currentProjects = useWritingStore.getState().projects;
       const projectsArray = Array.isArray(currentProjects) ? currentProjects : [];
       await supabaseService.saveWritingProjects(projectsArray);
       
-      // Open the web app URL
-      const canOpen = await Linking.canOpenURL(WEB_APP_URL);
-      if (canOpen) {
-        await Linking.openURL(WEB_APP_URL);
+      // Generate a session token for a project
+      let projectId;
+      
+      // If we're on the project list page, select the first project or create one if needed
+      if (showProjects) {
+        // Select the first project if available
+        if (projectsArray.length > 0) {
+          projectId = projectsArray[0].id;
+        } else {
+          // Create a new empty "Just Write" project
+          const newProject = createProject("Just Write", "just-write");
+          projectId = newProject.id;
+        }
       } else {
-        Alert.alert('Error', 'Cannot open the web app. Please try again later.');
+        // We're in the editor, use the current project
+        projectId = currentProject?.id;
+        
+        // If there's no current project but we have temp content, create a "Just Write" project
+        if (!projectId) {
+          // Use activeProjectId if available
+          if (activeProjectId) {
+            projectId = activeProjectId;
+          } else {
+            // Create a new project if needed
+            const newProject = createProject("Just Write", "just-write");
+            projectId = newProject.id;
+          }
+        }
       }
+      
+      // Generate the session token
+      console.log("[PAIRING] Generating session token for project ID:", projectId);
+      const token = await webWriterService.generateSessionToken(projectId);
+      
+      if (!token) {
+        console.error("[PAIRING] Failed to generate session token");
+        Alert.alert('Error', 'Failed to generate session token. Please try again.');
+        setLoading(false);
+        return;
+      }
+      
+      console.log("[PAIRING] Generated session token:", token);
+
+      // Generate a simple 6-character code for pairing
+      const code = Array(6).fill(0).map(() => 
+        "ABCDEFGHJKLMNPQRSTUVWXYZ23456789".charAt(Math.floor(Math.random() * 32))
+      ).join('');
+      
+      // Store the code-to-token mapping in Supabase
+      const userId = supabaseService.getCurrentUser()?.id;
+      console.log("[PAIRING] Creating pairing code:", code, "for user:", userId);
+      
+      const { data: pairingData, error } = await supabaseService.getClient()
+        .from('pairing_codes')
+        .insert({
+          code,
+          token,
+          user_id: userId,
+          expires_at: new Date(Date.now() + 15 * 60 * 1000).toISOString(), // 15 min expiry
+          paired: false
+        })
+        .select();
+        
+      console.log("[PAIRING] Pairing data created:", pairingData);
+      
+      if (error) {
+        console.error('Error storing pairing code:', error);
+        Alert.alert('Error', 'Failed to create pairing code. Please try again.');
+        setLoading(false);
+        return;
+      }
+      
+      // Set the pairing code and token in state
+      setPairingCode(code);
+      setPairingToken(token);
+      
+      // Show the pairing overlay
+      setShowPairingOverlay(true);
+      
+      // Start polling for pairing status
+      startPairingStatusCheck(code);
+      
     } catch (error) {
-      console.error('Error opening web app:', error);
-      Alert.alert('Error', 'There was a problem opening the web app. Please try again.');
+      console.error('Error starting web pairing:', error);
+      Alert.alert('Error', 'There was a problem setting up web pairing. Please try again.');
+    } finally {
+      setLoading(false);
     }
+  };
+  
+  // Polling function to check if the web app has been paired
+  const startPairingStatusCheck = (code: string) => {
+    const checkInterval = setInterval(async () => {
+      try {
+        console.log("[PAIRING] Checking pairing status for code:", code);
+        const { data, error } = await supabaseService.getClient()
+          .from('pairing_codes')
+          .select('paired, token')
+          .eq('code', code)
+          .single();
+          
+        if (error) {
+          console.error('[PAIRING] Error checking pairing status:', error);
+          clearInterval(checkInterval);
+          return;
+        }
+        
+        console.log("[PAIRING] Pairing status check result:", data);
+        
+        if (data && data.paired) {
+          console.log('[PAIRING] Device paired successfully! Token:', data.token);
+          clearInterval(checkInterval);
+          setIsPaired(true);
+          
+          // Verify the token still exists in web_session_tokens
+          const { data: tokenData, error: tokenError } = await supabaseService.getClient()
+            .from('web_session_tokens')
+            .select('id, project_id')
+            .eq('token', data.token)
+            .single();
+            
+          console.log("[PAIRING] Token verification in database:", tokenData || "Not found", tokenError || "No error");
+        }
+      } catch (e) {
+        console.error('Exception checking pairing status:', e);
+      }
+    }, 2000); // Check every 2 seconds
+    
+    // Stop checking after 5 minutes
+    setTimeout(() => {
+      clearInterval(checkInterval);
+    }, 5 * 60 * 1000);
+  };
+  
+  // Handle sending the project to web
+  const handleSendToWeb = async () => {
+    try {
+      setShowPairingOverlay(false);
+      setIsPaired(false);
+      
+      Alert.alert('Success', 'Your project has been sent to the web writer!');
+      
+      // The web app will automatically load the project using the token
+    } catch (error) {
+      console.error('Error sending to web:', error);
+      Alert.alert('Error', 'Failed to send project to web writer. Please try again.');
+    }
+  };
+  
+  // Handle closing the pairing overlay
+  const handleClosePairingOverlay = () => {
+    setShowPairingOverlay(false);
+    setIsPaired(false);
   };
   
   // Render project list screen
@@ -280,6 +495,85 @@ export default function WriteScreen() {
           </Text>
         </View>
         
+        {/* Web Pairing Modal Overlay */}
+        <Modal
+          visible={showPairingOverlay}
+          transparent={true}
+          animationType="fade"
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <TouchableOpacity 
+                style={styles.closeButton} 
+                onPress={handleClosePairingOverlay}
+              >
+                <X size={24} color={colors.text} />
+              </TouchableOpacity>
+              
+              {isPaired ? (
+                /* Paired View - Show swipe up indicator */
+                <View style={styles.pairedContainer}>
+                  <Text style={styles.pairedTitle}>Connected to Web</Text>
+                  <Text style={styles.pairedDescription}>
+                    Your project is ready to be sent to the web writer.
+                  </Text>
+                  
+                  <View style={styles.swipeContainer}>
+                    <Text style={styles.swipeText}>Swipe up to send</Text>
+                    <ArrowUp size={36} color={colors.primary} />
+                  </View>
+                  
+                  <TouchableOpacity 
+                    style={styles.sendButton}
+                    onPress={handleSendToWeb}
+                  >
+                    <Text style={styles.sendButtonText}>Send to Web</Text>
+                    <ExternalLink size={20} color={colors.surface} />
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                /* Pairing View - Show code and instructions */
+                <View style={styles.pairContainer}>
+                  <Text style={styles.pairTitle}>Connect to Web Writer</Text>
+                  <Text style={styles.pairDescription}>
+                    Navigate to the following website on your computer:
+                  </Text>
+                  
+                  <View style={styles.urlContainer}>
+                    <Text style={styles.urlText}>{WEB_APP_URL}</Text>
+                    <TouchableOpacity 
+                      style={styles.copyButton}
+                      onPress={() => {
+                        Linking.openURL(WEB_APP_URL);
+                        Alert.alert('URL opened in browser', 'You can copy it from there.');
+                      }}
+                    >
+                      <Copy size={16} color={colors.primary} />
+                    </TouchableOpacity>
+                  </View>
+                  
+                  <Text style={styles.pairInstructions}>
+                    Enter this pairing code:
+                  </Text>
+                  
+                  <View style={styles.codeContainer}>
+                    {pairingCode.split('').map((char, idx) => (
+                      <View key={idx} style={styles.codeChar}>
+                        <Text style={styles.codeText}>{char}</Text>
+                      </View>
+                    ))}
+                  </View>
+                  
+                  <Text style={styles.waitingText}>
+                    Waiting for connection...
+                  </Text>
+                  <ActivityIndicator color={colors.primary} />
+                </View>
+              )}
+            </View>
+          </View>
+        </Modal>
+        
         {loading && (
           <View style={styles.loadingContainer}>
             <ActivityIndicator color={colors.primary} size="small" />
@@ -294,11 +588,30 @@ export default function WriteScreen() {
             </Text>
           </View>
         ) : (
-          <ProjectList 
-            projects={projects || []} 
-            onSelectProject={handleSelectProject}
-            onDeleteProject={handleDeleteProject}
-          />
+          <GestureDetector gesture={swipeGesture}>
+            <View style={{flex: 1}}>
+              <ProjectList 
+                projects={projects || []} 
+                onSelectProject={handleSelectProject}
+                onDeleteProject={handleDeleteProject}
+              />
+              
+              {/* Web indicator that appears when swiping up */}
+              {showWebIndicator && (
+                <Animated.View 
+                  style={[
+                    styles.webIndicator,
+                    { opacity: webIndicatorOpacity }
+                  ]}
+                >
+                  <ExternalLink size={24} color={colors.primary} />
+                  <Text style={styles.webIndicatorText}>
+                    Swipe up to send to web
+                  </Text>
+                </Animated.View>
+              )}
+            </View>
+          </GestureDetector>
         )}
         
         <CreateProjectModal
@@ -409,6 +722,31 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 24,
   },
+  webIndicator: {
+    position: 'absolute',
+    top: 100,
+    left: 0,
+    right: 0,
+    zIndex: 1000,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    padding: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    borderRadius: 8,
+    marginHorizontal: 40,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
+    elevation: 3,
+    gap: 12,
+  },
+  webIndicatorText: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: colors.text,
+  },
   editorHeader: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -424,5 +762,141 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     flex: 1,
     marginHorizontal: 8,
+  },
+  // Web pairing modal styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalContent: {
+    width: '100%',
+    maxWidth: 400,
+    backgroundColor: colors.surface,
+    borderRadius: 16,
+    padding: 24,
+    alignItems: 'center',
+    minHeight: 250,
+    paddingTop: 40,
+    position: 'relative',
+  },
+  closeButton: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
+    width: 36,
+    height: 36,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 18,
+    backgroundColor: 'rgba(0,0,0,0.05)',
+  },
+  pairContainer: {
+    width: '100%',
+    alignItems: 'center',
+  },
+  pairTitle: {
+    fontSize: 22,
+    fontWeight: '600',
+    marginBottom: 16,
+    textAlign: 'center',
+    color: colors.text,
+  },
+  pairDescription: {
+    fontSize: 16,
+    marginBottom: 20,
+    textAlign: 'center',
+    color: colors.textSecondary,
+  },
+  urlContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.background,
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 24,
+    width: '100%',
+  },
+  urlText: {
+    flex: 1,
+    fontSize: 16,
+    color: colors.text,
+    fontWeight: '500',
+  },
+  copyButton: {
+    padding: 8,
+  },
+  pairInstructions: {
+    fontSize: 16,
+    marginBottom: 12,
+    color: colors.textSecondary,
+  },
+  codeContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    marginBottom: 24,
+  },
+  codeChar: {
+    width: 40,
+    height: 52,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: colors.primary,
+    borderRadius: 8,
+    margin: 4,
+  },
+  codeText: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: colors.surface,
+  },
+  waitingText: {
+    fontSize: 16,
+    marginBottom: 12,
+    color: colors.textSecondary,
+  },
+  pairedContainer: {
+    width: '100%',
+    alignItems: 'center',
+  },
+  pairedTitle: {
+    fontSize: 22,
+    fontWeight: '600',
+    color: colors.text,
+    marginBottom: 8,
+  },
+  pairedDescription: {
+    fontSize: 16,
+    textAlign: 'center',
+    color: colors.textSecondary,
+    marginBottom: 24,
+  },
+  swipeContainer: {
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  swipeText: {
+    fontSize: 18,
+    fontWeight: '500',
+    color: colors.primary,
+    marginBottom: 8,
+  },
+  sendButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.primary,
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 8,
+    minWidth: 200,
+    gap: 8,
+  },
+  sendButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.surface,
   },
 });

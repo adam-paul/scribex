@@ -9,8 +9,10 @@ import {
   KeyboardAvoidingView,
   Platform,
   Animated,
+  Alert,
 } from 'react-native';
-import { Save, EyeOff, Eye, Type, Plus, Minus } from 'lucide-react-native';
+import { GestureDetector, Gesture } from 'react-native-gesture-handler';
+import { Save, EyeOff, Eye, Type, Plus, Minus, ExternalLink } from 'lucide-react-native';
 import { colors } from '@/constants/colors';
 import { WritingProject } from '@/types';
 
@@ -91,6 +93,8 @@ export function WritingEditor({
       useNativeDriver: true,
     }).start();
   };
+  
+  // No web indicator animations anymore
   
   // Shared font size controls
   const increaseFontSize = () => {
@@ -177,6 +181,8 @@ export function WritingEditor({
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
+      {/* Web indicator moved to write.tsx */}
+      
       <Animated.View 
         style={[
           styles.toolbar, 
@@ -315,6 +321,7 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     color: colors.text,
   },
+  // Web indicator styles moved to write.tsx
   editorContainer: {
     flex: 1,
     padding: 16,

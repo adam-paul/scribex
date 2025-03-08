@@ -18,6 +18,10 @@
       "destination": "/web"
     },
     {
+      "source": "/",
+      "destination": "/web"
+    },
+    {
       "source": "/:path*",
       "destination": "/"
     }
