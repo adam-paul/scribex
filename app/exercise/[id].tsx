@@ -406,7 +406,7 @@ export default function ExerciseScreen() {
       const streakBonus = Math.min(consecutiveCorrectAnswers, 5) * 10; // Cap at 50 bonus XP for streak
       const totalXp = (results.correctAnswers * 20) + difficultyBonus + streakBonus;
       
-      // Show success message with XP breakdown immediately
+      // Show success message with XP breakdown
       Alert.alert(
         'Level Completed!',
         `You scored ${Math.round(results.score)}%!\n` +
@@ -417,22 +417,35 @@ export default function ExerciseScreen() {
         `You've unlocked the next level!`,
         [{ 
           text: 'Continue', 
-          onPress: () => {
-            // Navigate away immediately
-            router.replace('/(tabs)');
+          onPress: async () => {
+            try {
+              // Handle critical storage operations synchronously 
+              // when the user presses Continue
+              
+              // Add XP and wait for it to be stored
+              await addXp(totalXp);
+              
+              // Mark level as completed
+              await completeLevel(level.id);
+              
+              // Critical step: sync XP with user profile BEFORE navigation 
+              const progressStore = useProgressStore.getState();
+              await progressStore.updateUserProfileFromProgress();
+              
+              // Navigate away after XP is already synced
+              router.replace('/(tabs)');
+            } catch (error) {
+              console.error('Error saving XP:', error);
+              // Navigate anyway even if there was an error
+              router.replace('/(tabs)');
+            }
           }
         }]
       );
       
-      // Handle all storage operations asynchronously
+      // Handle remaining storage operations asynchronously
       (async () => {
         try {
-          // Add XP and wait for it to be stored
-          await addXp(totalXp);
-          
-          // Mark level as completed
-          await completeLevel(level.id);
-          
           // Update category progress - implement adaptive difficulty
           // If the user got 100%, boost their progress more
           const progressMultiplier = results.score === 100 ? 1.2 : 1.0;
@@ -454,15 +467,13 @@ export default function ExerciseScreen() {
             });
           }
 
-          // Now that all updates are complete, sync with server
+          // Sync all changes with server
           const progressStore = useProgressStore.getState();
-          await progressStore.updateUserProfileFromProgress();
           await progressStore.syncWithServer();
           
           console.log('Successfully saved all progress in background');
         } catch (error) {
           console.error('Error saving progress in background:', error);
-          // Since we've already navigated away, we'll just log the error
           // The next time the user loads their profile or starts a new level,
           // the sync process will attempt to reconcile any missed updates
         }
