@@ -8,6 +8,7 @@ dotenv.config();
 export default {
   name: "ScribeX",
   slug: "scribex",
+  owner: "notadampaul",
   version: "1.0.0",
   orientation: "portrait",
   icon: "./assets/images/icon.png",
@@ -19,13 +20,22 @@ export default {
     resizeMode: "contain",
     backgroundColor: "#FAF9F6"
   },
-  assetBundlePatterns: [
-    "**/*"
-  ],
   ios: {
+    infoPlist: {
+      ITSAppUsesNonExemptEncryption: false
+    },
     supportsTablet: true,
     bundleIdentifier: "com.scribex.app"
   },
+  updates: {
+    url: "https://u.expo.dev/2f77046d-0898-4825-9750-bbbde2568f41"
+  },
+  runtimeVersion: {
+    policy: "appVersion"
+  },
+  assetBundlePatterns: [
+    "**/*"
+  ],
   android: {
     adaptiveIcon: {
       foregroundImage: "./assets/images/adaptive-icon.png",
@@ -51,9 +61,13 @@ export default {
     // Supabase configuration
     supabaseUrl: process.env.SUPABASE_URL,
     supabaseAnonKey: process.env.SUPABASE_ANON_KEY,
+    // Router configuration
+    router: {
+      origin: false
+    },
     // For internal use
     eas: {
-      projectId: "scribex-educational-app"
+      "projectId": "2f77046d-0898-4825-9750-bbbde2568f41"
     }
   }
 };
